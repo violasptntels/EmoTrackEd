@@ -31,8 +31,8 @@ export default function ClassesPage() {
       participants: 28,
       maxParticipants: 30,
       schedule: "Senin, Rabu, Jumat 09:00-10:30",
-      status: "active",
-      nextSession: "2025-06-15 09:00",
+      status: "completed", // Updated to match student dashboard
+      nextSession: null,
       materials: 12,
       assignments: 5,
       emotionScore: 85,
@@ -53,17 +53,87 @@ export default function ClassesPage() {
     },
     {
       id: 3,
-      title: "Psikologi Pembelajaran",
-      instructor: "Dr. Lisa Wang",
-      description: "Memahami psikologi dalam proses pembelajaran",
+      title: "Ilmu Pengetahuan Alam",
+      instructor: "Dr. Emily Rodriguez",
+      description: "Memahami fenomena alam dengan pendekatan eksperimental",
+      participants: 22,
+      maxParticipants: 25,
+      schedule: "Senin, Kamis 11:00-12:30",
+      status: "upcoming",
+      nextSession: "2025-06-17 11:00",
+      materials: 10,
+      assignments: 4,
+      emotionScore: 79,
+    },
+    {
+      id: 4,
+      title: "Sejarah Indonesia",
+      instructor: "Prof. Ahmad Sulaiman",
+      description: "Mempelajari sejarah Indonesia dengan pendekatan naratif",
       participants: 20,
       maxParticipants: 25,
-      schedule: "Rabu 16:00-17:30",
+      schedule: "Selasa, Jumat 13:00-14:30",
       status: "upcoming",
-      nextSession: "2025-06-18 16:00",
-      materials: 6,
-      assignments: 2,
-      emotionScore: 78,
+      nextSession: "2025-06-18 13:00",
+      materials: 15,
+      assignments: 6,
+      emotionScore: 81,
+    },
+    {
+      id: 5,
+      title: "Pendidikan Kewarganegaraan",
+      instructor: "Dr. Lisa Anderson",
+      description: "Mempelajari nilai-nilai kewarganegaraan",
+      participants: 24,
+      maxParticipants: 30,
+      schedule: "Rabu, Jumat 09:00-10:30",
+      status: "completed",
+      nextSession: null,
+      materials: 9,
+      assignments: 4,
+      emotionScore: 77,
+    },
+    {
+      id: 6,
+      title: "Ilmu Sosial Dasar",
+      instructor: "Prof. David Wilson",
+      description: "Memahami dinamika sosial masyarakat",
+      participants: 26,
+      maxParticipants: 30,
+      schedule: "Selasa, Kamis 10:00-11:30",
+      status: "completed",
+      nextSession: null,
+      materials: 11,
+      assignments: 5,
+      emotionScore: 83,
+    },
+    {
+      id: 7,
+      title: "Seni dan Budaya",
+      instructor: "Dr. Maria Garcia",
+      description: "Eksplorasi seni dan budaya Indonesia",
+      participants: 23,
+      maxParticipants: 25,
+      schedule: "Jumat 15:00-16:30",
+      status: "completed",
+      nextSession: null,
+      materials: 7,
+      assignments: 3,
+      emotionScore: 90,
+    },
+    {
+      id: 8,
+      title: "Teknologi Informasi",
+      instructor: "Prof. James Smith",
+      description: "Pengenalan teknologi informasi dan aplikasinya",
+      participants: 18,
+      maxParticipants: 20,
+      schedule: "Senin, Rabu 13:00-14:30",
+      status: "upcoming",
+      nextSession: "2025-06-19 13:00",
+      materials: 8,
+      assignments: 4,
+      emotionScore: 75,
     },
   ]
 
@@ -80,6 +150,7 @@ export default function ClassesPage() {
       case "upcoming":
         return "bg-blue-500"
       case "ended":
+      case "completed":
         return "bg-gray-500"
       default:
         return "bg-gray-500"
@@ -93,6 +164,7 @@ export default function ClassesPage() {
       case "upcoming":
         return "Akan Datang"
       case "ended":
+      case "completed":
         return "Selesai"
       default:
         return "Unknown"
@@ -199,7 +271,7 @@ export default function ClassesPage() {
                   <div className="flex items-center gap-2 mt-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="text-xs">
-                      Sesi berikutnya: {new Date(cls.nextSession).toLocaleString("id-ID")}
+                      Sesi berikutnya: {cls.nextSession ? new Date(cls.nextSession).toLocaleString("id-ID") : "Selesai"}
                     </span>
                   </div>
                 </div>

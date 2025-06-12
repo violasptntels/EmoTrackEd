@@ -4,18 +4,20 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 interface EmotionIndicatorProps {
   emotion: string
-  size?: "sm" | "md" | "lg"
+  size?: "xs" | "sm" | "md" | "lg"
   showLabel?: boolean
 }
 
 export function EmotionIndicator({ emotion, size = "md", showLabel = false }: EmotionIndicatorProps) {
   const sizeClasses = {
+    xs: "h-6 w-6",
     sm: "h-8 w-8",
     md: "h-10 w-10",
     lg: "h-12 w-12",
   }
 
   const iconSizes = {
+    xs: "h-3 w-3",
     sm: "h-4 w-4",
     md: "h-5 w-5",
     lg: "h-6 w-6",

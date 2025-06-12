@@ -21,12 +21,12 @@ export default function AnalyticsPage() {
   }, [])
 
   // Data emosi dari kelas virtual yang sudah diikuti
+  // Match with student dashboard: 4 completed classes in total
   const classEmotionData = [
-    { class: "Matematika", senang: 80, sedih: 10, marah: 5, netral: 25, takut: 5, date: "12 Jun" },
-    { class: "B. Inggris", senang: 60, sedih: 25, marah: 8, netral: 30, takut: 15, date: "11 Jun" },
-    { class: "IPA", senang: 85, sedih: 8, marah: 3, netral: 35, takut: 2, date: "10 Jun" },
-    { class: "IPS", senang: 70, sedih: 15, marah: 10, netral: 28, takut: 8, date: "09 Jun" },
-    { class: "Seni", senang: 90, sedih: 5, marah: 2, netral: 40, takut: 1, date: "08 Jun" },
+    { class: "Matematika Dasar", senang: 80, sedih: 10, marah: 5, netral: 25, takut: 5, date: "12 Jun" },
+    { class: "Pendidikan Kewarganegaraan", senang: 60, sedih: 25, marah: 8, netral: 30, takut: 15, date: "11 Jun" },
+    { class: "Ilmu Sosial Dasar", senang: 85, sedih: 8, marah: 3, netral: 35, takut: 2, date: "10 Jun" },
+    { class: "Seni dan Budaya", senang: 90, sedih: 5, marah: 2, netral: 40, takut: 1, date: "09 Jun" },
   ]
 
   // Data distribusi emosi dari semua kelas virtual

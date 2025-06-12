@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -7,6 +8,7 @@ import { EmotionIndicator } from "@/components/emotion-indicator"
 import { NotificationBell } from "@/components/notification-bell"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
+import { LineChart, BarChart, DonutChart } from "@/components/charts"
 import {
   Users,
   BookOpen,
@@ -51,7 +53,7 @@ function AdminDashboard({ user }: { user: { name: string; role: string } }) {
           <p className="text-muted-foreground">Selamat datang, {user.name}</p>
         </div>
         <div className="mt-4 md:mt-0 flex items-center gap-4">
-          <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
+          <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500">
             <Shield className="h-3 w-3 mr-1" />
             {user.role}
           </Badge>
@@ -153,7 +155,7 @@ function AdminDashboard({ user }: { user: { name: string; role: string } }) {
                 { user: "Admin", action: "Backup database berhasil", time: "1 jam lalu", type: "system" },
                 { user: "Mike Johnson", action: "Mengikuti kelas virtual", time: "2 jam lalu", type: "class" },
               ].map((activity, index) => (
-                <div key={index} className="flex items-center gap-4 p-3 rounded-lg border border-border/50">
+                <div key={index} className="flex items-center gap-4 p-3 rounded-lg border-[0.5px] border-border/30">
                   <div
                     className={`p-2 rounded-full ${
                       activity.type === "login"
@@ -219,6 +221,81 @@ function AdminDashboard({ user }: { user: { name: string; role: string } }) {
 }
 
 function FasilitatorDashboard({ user }: { user: { name: string; role: string } }) {
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [emotionDistribution, setEmotionDistribution] = useState<any[]>([]);
+  
+  // Data emosi dari kelas virtual yang sudah diikuti
+  const classEmotionData = [
+    { class: "Matematika", senang: 80, sedih: 10, marah: 5, netral: 25, takut: 5, date: "12 Jun" },
+    { class: "B. Inggris", senang: 60, sedih: 25, marah: 8, netral: 30, takut: 15, date: "11 Jun" },
+    { class: "IPA", senang: 85, sedih: 8, marah: 3, netral: 35, takut: 2, date: "10 Jun" },
+    { class: "IPS", senang: 70, sedih: 15, marah: 10, netral: 28, takut: 8, date: "09 Jun" },
+    { class: "Seni", senang: 90, sedih: 5, marah: 2, netral: 40, takut: 1, date: "08 Jun" },
+  ];
+  
+  // Data distribusi emosi dari semua kelas virtual
+  const defaultEmotionDistribution = [
+    { name: "Senang", value: 45, color: "hsl(var(--joy))" },
+    { name: "Netral", value: 25, color: "hsl(var(--neutral))" },
+    { name: "Sedih", value: 15, color: "hsl(var(--sadness))" },
+    { name: "Marah", value: 10, color: "hsl(var(--anger))" },
+    { name: "Takut", value: 5, color: "hsl(var(--fear))" },
+  ];
+  
+  // Calculate statistics based on class data
+  const todayClasses = classEmotionData.filter(c => c.date === "12 Jun").length;
+  const completedClasses = 4; // Updated to match admin dashboard and student data
+  const ongoingClasses = 1;   // Updated to match student dashboard
+  
+  // Count students needing attention based on emotion data
+  const studentsNeedingAttention = classEmotionData.filter(c => 
+    c.sedih > 20 || c.marah > 8 || c.takut > 10
+  ).length;
+  
+  // Data statistik kelas
+  const [classStats, setClassStats] = useState({
+    activeStudents: 89, // Match admin dashboard data - 89 active out of 132 total
+    totalStudents: 132, // Match admin dashboard data
+    todayClasses: todayClasses,
+    completedClasses: completedClasses,
+    ongoingClasses: ongoingClasses,
+    needAttention: studentsNeedingAttention,
+  });
+  
+  useEffect(() => {
+    // Set default chart data
+    setChartData(classEmotionData);
+    setEmotionDistribution(defaultEmotionDistribution);
+    
+    // Jika ada kelas yang dipilih, filter data berdasarkan kelas tersebut
+    if (selectedClass) {
+      const selectedClassData = classEmotionData.filter(item => item.class === selectedClass);
+      
+      // Update emotion distribution berdasarkan kelas yang dipilih
+      if (selectedClassData.length > 0) {
+        const data = selectedClassData[0];
+        setEmotionDistribution([
+          { name: "Senang", value: data.senang, color: "hsl(var(--joy))" },
+          { name: "Netral", value: data.netral, color: "hsl(var(--neutral))" },
+          { name: "Sedih", value: data.sedih, color: "hsl(var(--sadness))" },
+          { name: "Marah", value: data.marah, color: "hsl(var(--anger))" },
+          { name: "Takut", value: data.takut, color: "hsl(var(--fear))" },
+        ]);
+      }
+    }
+  }, [selectedClass]);
+  
+  const handleClassClick = (className: string) => {
+    if (selectedClass === className) {
+      // Jika kelas yang sama diklik lagi, reset pilihan
+      setSelectedClass(null);
+    } else {
+      // Pilih kelas baru
+      setSelectedClass(className);
+    }
+  };
+  
   return (
     <main className="p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -227,7 +304,7 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           <p className="text-muted-foreground">Selamat datang, {user.name}</p>
         </div>
         <div className="mt-4 md:mt-0 flex items-center gap-4">
-          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500">
             <UserCheck className="h-3 w-3 mr-1" />
             {user.role}
           </Badge>
@@ -254,12 +331,12 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">28</div>
+              <div className="text-2xl font-bold">{classStats.activeStudents}</div>
               <div className="p-2 bg-primary/10 rounded-full">
                 <Users className="h-5 w-5 text-primary" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Dari 32 total siswa</p>
+            <p className="text-xs text-muted-foreground mt-2">Dari {classStats.totalStudents} total siswa</p>
           </CardContent>
         </Card>
 
@@ -269,12 +346,12 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">6</div>
+              <div className="text-2xl font-bold">{classStats.todayClasses}</div>
               <div className="p-2 bg-primary/10 rounded-full">
                 <BookOpen className="h-5 w-5 text-primary" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">4 selesai, 2 berlangsung</p>
+            <p className="text-xs text-muted-foreground mt-2">{classStats.completedClasses} selesai, {classStats.ongoingClasses} berlangsung</p>
           </CardContent>
         </Card>
 
@@ -284,12 +361,60 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold text-orange-500">3</div>
+              <div className="text-2xl font-bold text-orange-500">{classStats.needAttention}</div>
               <div className="p-2 bg-orange-500/10 rounded-full">
                 <AlertTriangle className="h-5 w-5 text-orange-500" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Siswa dengan emosi negatif</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Chart Section */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Grafik Emosi Per Kelas</CardTitle>
+              <CardDescription>
+                {selectedClass 
+                  ? `Menampilkan emosi siswa di kelas ${selectedClass}` 
+                  : "Klik pada kelas untuk melihat detail"}
+              </CardDescription>
+            </div>
+            {selectedClass && (
+              <Button variant="outline" size="sm" onClick={() => setSelectedClass(null)}>
+                Reset Filter
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <div className="flex flex-wrap gap-2 mb-4">
+                {classEmotionData.map((item) => (
+                  <Badge 
+                    key={item.class}
+                    variant={selectedClass === item.class ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => handleClassClick(item.class)}
+                  >
+                    {item.class}
+                  </Badge>
+                ))}
+              </div>
+              <div className="h-72">
+                <LineChart data={classEmotionData} />
+              </div>
+            </div>
+            {selectedClass && (
+              <div className="mt-6">
+                <h4 className="text-sm font-medium mb-2">Distribusi Emosi untuk {selectedClass}</h4>
+                <div className="h-52">
+                  <DonutChart data={emotionDistribution} />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -308,19 +433,41 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
                   emotion: "joy",
                   activity: "Mengikuti kelas Matematika",
                   time: "5 menit lalu",
+                  class: "Matematika"
                 },
-                { name: "Bob Smith", emotion: "sadness", activity: "Refleksi setelah kelas", time: "10 menit lalu" },
-                { name: "Carol Davis", emotion: "neutral", activity: "Membaca materi", time: "15 menit lalu" },
-                { name: "David Wilson", emotion: "anger", activity: "Diskusi di kelas", time: "20 menit lalu" },
+                { 
+                  name: "Bob Smith", 
+                  emotion: "sadness", 
+                  activity: "Refleksi setelah kelas", 
+                  time: "10 menit lalu",
+                  class: "B. Inggris" 
+                },
+                { 
+                  name: "Carol Davis", 
+                  emotion: "neutral", 
+                  activity: "Membaca materi", 
+                  time: "15 menit lalu",
+                  class: "IPA" 
+                },
+                { 
+                  name: "David Wilson", 
+                  emotion: "anger", 
+                  activity: "Diskusi di kelas", 
+                  time: "20 menit lalu",
+                  class: "IPS" 
+                },
               ].map((student, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-4 p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors"
+                  className="flex items-center gap-4 p-3 rounded-lg border-[0.5px] border-border/30 hover:border-primary/30 transition-colors"
                 >
                   <EmotionIndicator emotion={student.emotion} size="md" />
                   <div className="flex-1">
                     <p className="text-sm font-medium">{student.name}</p>
-                    <p className="text-xs text-muted-foreground">{student.activity}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{student.activity}</p>
+                      <Badge variant="outline" className="text-xs">{student.class}</Badge>
+                    </div>
                   </div>
                   <span className="text-xs text-muted-foreground">{student.time}</span>
                 </div>
@@ -367,17 +514,130 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
 }
 
 function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
-  // Data berdasarkan kelas virtual yang sudah dan akan diikuti
-  const virtualClasses = {
-    completed: 5, // Kelas yang sudah selesai diikuti
-    upcoming: 3, // Kelas yang akan datang
-    total: 8, // Total kelas yang terjadwal
-  }
-
-  const reflections = {
-    completed: 3, // Refleksi yang sudah dibuat (dari 5 kelas yang selesai)
-    pending: 2, // Refleksi yang belum dibuat
-  }
+  const [virtualClasses, setVirtualClasses] = useState({
+    completed: 0,
+    upcoming: 0,
+    total: 0,
+  });
+  
+  const [reflections, setReflections] = useState({
+    completed: 0,
+    pending: 0,
+  });
+  
+  const [analyticsData, setAnalyticsData] = useState<{
+    count: number,
+    emotions: {name: string, value: number, color: string}[]
+  }>({
+    count: 0,
+    emotions: []
+  });
+  
+  // Fetch data dari localStorage atau API ketika komponen dimuat
+  useEffect(() => {
+    // Mendapatkan data kelas virtual
+    const fetchClasses = () => {
+      try {
+        // Coba ambil data dari mock API/localStorage
+        // Untuk demo, kita gunakan data statis yang sama dengan halaman classes
+        const classes = [
+          {
+            id: 1,
+            title: "Matematika Dasar",
+            status: "completed",
+          },
+          {
+            id: 2,
+            title: "Bahasa Inggris Komunikatif",
+            status: "active",
+          },
+          {
+            id: 3,
+            title: "Ilmu Pengetahuan Alam",
+            status: "upcoming",
+          },
+          {
+            id: 4,
+            title: "Sejarah Indonesia",
+            status: "upcoming",
+          },
+          {
+            id: 5,
+            title: "Pendidikan Kewarganegaraan",
+            status: "completed",
+          },
+          {
+            id: 6,
+            title: "Ilmu Sosial Dasar",
+            status: "completed",
+          },
+          {
+            id: 7,
+            title: "Seni dan Budaya",
+            status: "completed",
+          },
+          {
+            id: 8,
+            title: "Teknologi Informasi",
+            status: "upcoming",
+          },
+        ];
+        
+        // Hitung completed, upcoming, dan total
+        const completed = classes.filter(c => c.status === "completed").length;
+        const upcoming = classes.filter(c => c.status === "upcoming" || c.status === "active").length;
+        const total = classes.length;
+        
+        setVirtualClasses({
+          completed,
+          upcoming,
+          total,
+        });
+        
+        // Update refleksi yang telah dibuat
+        const completedReflections = completed; // Asumsikan setiap kelas completed memiliki refleksi
+        const pendingReflections = classes.filter(c => c.status === "active").length; // Kelas active memerlukan refleksi
+        
+        setReflections({
+          completed: completedReflections,
+          pending: pendingReflections,
+        });
+        
+        // Update data analytics - ensure it matches completed classes
+        setAnalyticsData({
+          count: completed, // Analytics count always equals number of completed classes
+          emotions: [
+            { name: "Senang", value: 45, color: "hsl(var(--joy))" },
+            { name: "Netral", value: 25, color: "hsl(var(--neutral))" },
+            { name: "Sedih", value: 15, color: "hsl(var(--sadness))" },
+            { name: "Marah", value: 10, color: "hsl(var(--anger))" },
+            { name: "Takut", value: 5, color: "hsl(var(--fear))" }
+          ]
+        });
+        
+      } catch (error) {
+        console.error("Error fetching class data:", error);
+        // Fallback ke data default jika terjadi error
+        setVirtualClasses({
+          completed: 4,
+          upcoming: 4,
+          total: 8,
+        });
+        
+        setReflections({
+          completed: 4,
+          pending: 1,
+        });
+        
+        setAnalyticsData({
+          count: 4,
+          emotions: []
+        });
+      }
+    };
+    
+    fetchClasses();
+  }, []);
 
   const recentReflections = [
     {
@@ -484,12 +744,12 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{virtualClasses.completed}</div>
+                <div className="text-2xl font-bold">{analyticsData.count}</div>
                 <div className="p-2 bg-primary/10 rounded-full">
                   <BarChart3 className="h-5 w-5 text-primary" />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Data dari kelas virtual</p>
+              <p className="text-xs text-muted-foreground mt-2">{analyticsData.count} kelas dengan data emosi</p>
               <div className="flex items-center mt-2 text-xs text-primary">
                 <span>Lihat analisis</span>
                 <ArrowRight className="h-3 w-3 ml-1" />
@@ -518,7 +778,7 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
               {recentReflections.map((reflection) => (
                 <div
                   key={reflection.id}
-                  className="flex gap-4 p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors"
+                  className="flex gap-4 p-3 rounded-lg border-[0.5px] border-border/30 hover:border-primary/30 transition-colors"
                 >
                   <EmotionIndicator emotion={reflection.emotion} size="md" />
                   <div className="flex-1">
