@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EmotionIndicator } from "@/components/emotion-indicator"
+import { NotificationBell } from "@/components/notification-bell"
+import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
 import {
   Users,
@@ -48,11 +50,23 @@ function AdminDashboard({ user }: { user: { name: string; role: string } }) {
           <h1 className="text-2xl md:text-3xl font-bold">Dashboard Admin</h1>
           <p className="text-muted-foreground">Selamat datang, {user.name}</p>
         </div>
-        <div className="mt-4 md:mt-0 flex items-center gap-2">
+        <div className="mt-4 md:mt-0 flex items-center gap-4">
           <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
             <Shield className="h-3 w-3 mr-1" />
             {user.role}
           </Badge>
+          <Badge variant="outline" className="text-xs">
+            <Calendar className="h-3 w-3 mr-1" />
+            {new Date().toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+          </Badge>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
@@ -212,11 +226,23 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           <h1 className="text-2xl md:text-3xl font-bold">Dashboard Fasilitator</h1>
           <p className="text-muted-foreground">Selamat datang, {user.name}</p>
         </div>
-        <div className="mt-4 md:mt-0 flex items-center gap-2">
+        <div className="mt-4 md:mt-0 flex items-center gap-4">
           <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
             <UserCheck className="h-3 w-3 mr-1" />
             {user.role}
           </Badge>
+          <Badge variant="outline" className="text-xs">
+            <Calendar className="h-3 w-3 mr-1" />
+            {new Date().toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+          </Badge>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
@@ -387,7 +413,7 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
           <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Selamat datang kembali, {user.name}</p>
         </div>
-        <div className="mt-4 md:mt-0 flex items-center gap-2">
+        <div className="mt-4 md:mt-0 flex items-center gap-4">
           <Badge variant="outline" className="text-xs">
             {user.role}
           </Badge>
@@ -399,6 +425,10 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
               year: "numeric",
             })}
           </Badge>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
