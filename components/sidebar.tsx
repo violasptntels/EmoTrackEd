@@ -266,11 +266,7 @@ export function Sidebar({ user: propUser }: SidebarProps) {
               </Link>
             ))}
           </nav>
-          <div className="p-4 border-t border-border/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <NotificationBell />
-              <ThemeToggle />
-            </div>
+          <div className="p-4 border-t border-border/40 flex justify-center">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Keluar

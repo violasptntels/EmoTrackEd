@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Clock, AlertTriangle, CheckCircle, Info } from "lucide-react"
+import { Bell, Clock, AlertTriangle, CheckCircle, Info, Shield, BookOpen, FileText, Activity } from "lucide-react"
 import Link from "next/link"
 
 interface Notification {
@@ -24,40 +24,128 @@ interface Notification {
 }
 
 export function NotificationBell() {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: "Kelas Matematika Dimulai",
-      message: "Kelas Matematika Dasar akan dimulai dalam 5 menit",
-      type: "info",
-      time: "2 menit lalu",
-      read: false,
-    },
-    {
-      id: 2,
-      title: "Refleksi Tertunda",
-      message: "Anda memiliki 2 refleksi yang belum diselesaikan",
-      type: "warning",
-      time: "1 jam lalu",
-      read: false,
-    },
-    {
-      id: 3,
-      title: "Emosi Negatif Terdeteksi",
-      message: "Sistem mendeteksi emosi sedih pada kelas terakhir",
-      type: "warning",
-      time: "3 jam lalu",
-      read: true,
-    },
-    {
-      id: 4,
-      title: "Tugas Berhasil Diserahkan",
-      message: "Tugas Aljabar Linear berhasil diserahkan",
-      type: "success",
-      time: "1 hari lalu",
-      read: true,
-    },
-  ])
+  const [user, setUser] = useState<{ name: string; role: string }>({ name: "", role: "Siswa" })
+  const [notifications, setNotifications] = useState<Notification[]>([])
+
+  // Get user data from localStorage
+  useEffect(() => {
+    const userData = localStorage.getItem("userData")
+    if (userData) {
+      const parsedUser = JSON.parse(userData)
+      setUser(parsedUser)
+    }
+  }, [])
+
+  // Set different notifications based on user role
+  useEffect(() => {
+    if (user.role === "Admin") {
+      setNotifications([
+        {
+          id: 1,
+          title: "Aktivitas Sistem Mencurigakan",
+          message: "Terdeteksi aktivitas login yang tidak biasa dari 3 akun",
+          type: "warning",
+          time: "5 menit lalu",
+          read: false,
+        },
+        {
+          id: 2,
+          title: "Backup Database Selesai",
+          message: "Backup otomatis database berhasil dilakukan",
+          type: "success",
+          time: "30 menit lalu",
+          read: false,
+        },
+        {
+          id: 3,
+          title: "Laporan Baru Tersedia",
+          message: "Laporan emosi global bulanan telah siap ditinjau",
+          type: "info",
+          time: "2 jam lalu",
+          read: true,
+        },
+        {
+          id: 4,
+          title: "Permintaan Fasilitator Baru",
+          message: "2 permintaan pendaftaran fasilitator memerlukan persetujuan",
+          type: "info",
+          time: "1 hari lalu",
+          read: true,
+        },
+      ])
+    } else if (user.role === "Fasilitator") {
+      setNotifications([
+        {
+          id: 1,
+          title: "Emosi Negatif Terdeteksi",
+          message: "3 siswa menunjukkan emosi negatif dalam kelas Matematika",
+          type: "warning",
+          time: "10 menit lalu",
+          read: false,
+        },
+        {
+          id: 2,
+          title: "Jadwal Kelas Berubah",
+          message: "Kelas Bahasa Inggris dipindahkan ke jam 14:00",
+          type: "info",
+          time: "1 jam lalu",
+          read: false,
+        },
+        {
+          id: 3,
+          title: "Refleksi Siswa Terkumpul",
+          message: "15 siswa telah mengumpulkan refleksi pembelajaran hari ini",
+          type: "success",
+          time: "3 jam lalu",
+          read: true,
+        },
+        {
+          id: 4,
+          title: "Evaluasi Kelas",
+          message: "Waktunya mengevaluasi kelas Matematika minggu ini",
+          type: "info",
+          time: "1 hari lalu",
+          read: true,
+        },
+      ])
+    } else {
+      // Default untuk Siswa
+      setNotifications([
+        {
+          id: 1,
+          title: "Kelas Matematika Dimulai",
+          message: "Kelas Matematika Dasar akan dimulai dalam 5 menit",
+          type: "info",
+          time: "2 menit lalu",
+          read: false,
+        },
+        {
+          id: 2,
+          title: "Refleksi Tertunda",
+          message: "Anda memiliki 2 refleksi yang belum diselesaikan",
+          type: "warning",
+          time: "1 jam lalu",
+          read: false,
+        },
+        {
+          id: 3,
+          title: "Emosi Terdeteksi",
+          message: "Sistem mendeteksi emosi sedih pada kelas terakhir Anda",
+          type: "warning",
+          time: "3 jam lalu",
+          read: true,
+        },
+        {
+          id: 4,
+          title: "Tugas Berhasil Diserahkan",
+          message: "Tugas Aljabar Linear berhasil diserahkan",
+          type: "success",
+          time: "1 hari lalu",
+          read: true,
+        },
+      ])
+    }
+  }, [user.role])
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -69,7 +157,22 @@ export function NotificationBell() {
     setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })))
   }
 
-  const getIcon = (type: string) => {
+  // Mendapatkan ikon yang lebih sesuai berdasarkan tipe notifikasi dan kontennya
+  const getIcon = (notification: Notification) => {
+    const { type, title } = notification
+    
+    // Ikon spesifik berdasarkan judul notifikasi untuk menambahkan konteks visual
+    if (title.includes("Kelas")) {
+      return <BookOpen className="h-4 w-4 text-blue-500" />
+    } else if (title.includes("Refleksi")) {
+      return <FileText className="h-4 w-4 text-purple-500" />
+    } else if (title.includes("Backup") || title.includes("Database") || title.includes("Sistem")) {
+      return <Shield className="h-4 w-4 text-green-500" />
+    } else if (title.includes("Emosi")) {
+      return <Activity className="h-4 w-4 text-orange-500" />
+    }
+    
+    // Ikon default berdasarkan tipe notifikasi
     switch (type) {
       case "warning":
         return <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -100,7 +203,21 @@ export function NotificationBell() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Notifikasi</span>
+          <div className="flex items-center gap-2">
+            <span>Notifikasi</span>
+            <Badge 
+              variant="outline" 
+              className={`text-xs ${
+                user.role === "Admin" 
+                  ? "bg-red-500/10 text-red-500 border-red-500/20" 
+                  : user.role === "Fasilitator"
+                  ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                  : "bg-primary/10 text-primary border-primary/20"
+              }`}
+            >
+              {user.role}
+            </Badge>
+          </div>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs h-auto p-1">
               Tandai semua dibaca
@@ -125,7 +242,7 @@ export function NotificationBell() {
                 onClick={() => markAsRead(notification.id)}
               >
                 <div className="flex items-start gap-3 w-full">
-                  {getIcon(notification.type)}
+                  {getIcon(notification)}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium truncate">{notification.title}</p>
