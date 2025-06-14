@@ -12,17 +12,35 @@ import Link from "next/link"
 export default function ClassesPage() {
   const [user, setUser] = useState({ name: "Guest", role: "Siswa" })
   const [searchTerm, setSearchTerm] = useState("")
+  const [classes, setClasses] = useState<any[]>([])
 
   useEffect(() => {
+    // Load user data
     const userData = localStorage.getItem("userData")
     if (userData) {
       const parsedUser = JSON.parse(userData)
       setUser(parsedUser)
     }
+
+    // Load class data from localStorage or use default data
+    const savedClasses = localStorage.getItem("virtualClasses")
+    if (savedClasses) {
+      try {
+        const parsedClasses = JSON.parse(savedClasses)
+        setClasses(parsedClasses)
+      } catch (error) {
+        console.error("Error parsing saved classes:", error)
+        setClasses(defaultClasses)
+      }
+    } else {
+      // If no saved classes, use default data and save it to localStorage
+      setClasses(defaultClasses)
+      localStorage.setItem("virtualClasses", JSON.stringify(defaultClasses))
+    }
   }, [])
 
-  // Data kelas virtual
-  const classes = [
+  // Default data kelas virtual
+  const defaultClasses = [
     {
       id: 1,
       title: "Matematika Dasar",
@@ -171,6 +189,30 @@ export default function ClassesPage() {
     }
   }
 
+  const handleDeleteClass = (classId: number | string) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus kelas ini?")) {
+      try {
+        // Get existing classes from localStorage
+        const existingClassesStr = localStorage.getItem("virtualClasses")
+        if (existingClassesStr) {
+          const existingClasses = JSON.parse(existingClassesStr)
+          
+          // Filter out the class to be deleted
+          const updatedClasses = existingClasses.filter((cls: any) => cls.id !== classId)
+          
+          // Save the updated classes back to localStorage
+          localStorage.setItem("virtualClasses", JSON.stringify(updatedClasses))
+          
+          // Update the state to reflect the change
+          setClasses(updatedClasses)
+        }
+      } catch (error) {
+        console.error("Error deleting class:", error)
+        alert("Gagal menghapus kelas. Silakan coba lagi.")
+      }
+    }
+  }
+
   return (
     <main className="p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -229,7 +271,7 @@ export default function ClassesPage() {
                     <AvatarFallback>
                       {cls.instructor
                         .split(" ")
-                        .map((n) => n[0])
+                        .map((n: any) => n[0])
                         .join("")}
                     </AvatarFallback>
                   </Avatar>
@@ -312,6 +354,14 @@ export default function ClassesPage() {
                         <Link href={`/classes/${cls.id}/emotions`}>
                           <MessageSquare className="h-4 w-4" />
                         </Link>
+                      </Button>
+                      <Button 
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleDeleteClass(cls.id)}
+                        className="h-9 w-9">
+                        <span className="sr-only">Hapus kelas</span>
+                        ×
                       </Button>
                     </>
                   )}

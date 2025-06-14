@@ -43,6 +43,32 @@ export default function CreateClassPage() {
     try {
       console.log("Creating class:", formData)
 
+      // Create a proper class object with needed properties
+      const newClass = {
+        id: Date.now(), // Generate a unique ID based on timestamp
+        title: formData.title,
+        instructor: "Anda (Fasilitator)", // Default to current user
+        description: formData.description || "Tidak ada deskripsi",
+        participants: 0,
+        maxParticipants: parseInt(formData.maxParticipants),
+        schedule: `${formatDate(formData.date)} ${formData.startTime}-${formData.endTime}`,
+        status: "upcoming",
+        nextSession: `${formData.date} ${formData.startTime}`,
+        materials: 0,
+        assignments: 0,
+        emotionScore: 0,
+      }
+
+      // Get existing classes from localStorage or initialize with empty array
+      const existingClassesStr = localStorage.getItem("virtualClasses")
+      const existingClasses = existingClassesStr ? JSON.parse(existingClassesStr) : []
+      
+      // Add new class to the beginning of the array
+      const updatedClasses = [newClass, ...existingClasses]
+      
+      // Save updated classes to localStorage
+      localStorage.setItem("virtualClasses", JSON.stringify(updatedClasses))
+
       // Simulasi delay API
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
@@ -53,6 +79,14 @@ export default function CreateClassPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+  
+  // Helper function to format date
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ""
+    const date = new Date(dateStr)
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
+    return days[date.getDay()]
   }
 
   const isFormValid = formData.title && formData.subject && formData.date && formData.startTime && formData.endTime

@@ -17,6 +17,37 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Users, User, School, UserCog, CheckCircle, XCircle } from "lucide-react"
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { z } from "zod"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/components/ui/form"
+
+// User form schema
+const userFormSchema = z.object({
+	name: z.string().min(2, { message: "Nama harus minimal 2 karakter" }),
+	email: z.string().email({ message: "Email tidak valid" }),
+	role: z.string({ required_error: "Role harus dipilih" }),
+	status: z.string({ required_error: "Status harus dipilih" }),
+})
+
+type UserFormValues = z.infer<typeof userFormSchema>
 
 // Dummy data pengguna
 const dummyUsers = [
@@ -73,6 +104,91 @@ const dummyUsers = [
 export default function AdminUsersPage() {
 	const [searchTerm, setSearchTerm] = useState("")
 	const [users, setUsers] = useState(dummyUsers)
+	const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+	const [currentUser, setCurrentUser] = useState<(typeof dummyUsers)[0] | null>(null)
+	
+	// Form for adding a new user
+	const addForm = useForm<UserFormValues>({
+		resolver: zodResolver(userFormSchema),
+		defaultValues: {
+			name: "",
+			email: "",
+			role: "Siswa",
+			status: "Aktif",
+		},
+	})
+	
+	// Form for editing an existing user
+	const editForm = useForm<UserFormValues>({
+		resolver: zodResolver(userFormSchema),
+		defaultValues: {
+			name: "",
+			email: "",
+			role: "Siswa",
+			status: "Aktif",
+		},
+	})
+	
+	// Handling the add user submission
+	const onAddUser = (values: UserFormValues) => {
+		// Create a new user object
+		const newUser = {
+			id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
+			name: values.name,
+			email: values.email,
+			role: values.role,
+			status: values.status,
+			avatar: "/placeholder-user.jpg", // Default avatar
+		}
+		
+		// Add the new user to the users array
+		setUsers([...users, newUser])
+		
+		// Close the dialog and reset the form
+		setIsAddDialogOpen(false)
+		addForm.reset()
+	}
+	
+	// Handling the edit user submission
+	const onEditUser = (values: UserFormValues) => {
+		if (!currentUser) return
+		
+		// Update the user object
+		const updatedUsers = users.map(user => {
+			if (user.id === currentUser.id) {
+				return {
+					...user,
+					name: values.name,
+					email: values.email,
+					role: values.role,
+					status: values.status,
+				}
+			}
+			return user
+		})
+		
+		// Update the users array
+		setUsers(updatedUsers)
+		
+		// Close the dialog, reset the form, and clear the current user
+		setIsEditDialogOpen(false)
+		setCurrentUser(null)
+		editForm.reset()
+	}
+	
+	// Opening the edit dialog and setting the current user
+	const handleEdit = (id: number) => {
+		const user = users.find(u => u.id === id)
+		if (user) {
+			setCurrentUser(user)
+			editForm.setValue("name", user.name)
+			editForm.setValue("email", user.email)
+			editForm.setValue("role", user.role)
+			editForm.setValue("status", user.status)
+			setIsEditDialogOpen(true)
+		}
+	}
 
 	// Menghitung statistik pengguna berdasarkan role dan status
 	const totalUsers = users.length
@@ -97,10 +213,7 @@ export default function AdminUsersPage() {
 			user.role.toLowerCase().includes(searchTerm.toLowerCase())
 	)
 
-	// Handler edit dan hapus (dummy)
-	const handleEdit = (id: number) => {
-		alert(`Edit user dengan ID: ${id}`)
-	}
+	// Handler for deleting a user
 	const handleDelete = (id: number) => {
 		if (confirm("Yakin ingin menghapus pengguna ini?")) {
 			setUsers(users.filter((u) => u.id !== id))
@@ -124,7 +237,7 @@ export default function AdminUsersPage() {
 							onChange={(e) => setSearchTerm(e.target.value)}
 							className="w-56"
 						/>
-						<Button variant="default" size="sm">
+						<Button variant="default" size="sm" onClick={() => setIsAddDialogOpen(true)}>
 							<UserPlus className="h-4 w-4 mr-2" /> Tambah Pengguna
 						</Button>
 					</div>
@@ -292,6 +405,202 @@ export default function AdminUsersPage() {
 					</Table>
 				</CardContent>
 			</Card>
+			
+			{/* Add User Dialog */}
+			<Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Tambah Pengguna Baru</DialogTitle>
+						<DialogDescription>
+							Masukkan informasi pengguna baru di bawah ini.
+						</DialogDescription>
+					</DialogHeader>
+					<Form {...addForm}>
+						<form onSubmit={addForm.handleSubmit(onAddUser)} className="space-y-4">
+							<FormField
+								control={addForm.control}
+								name="name"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Nama Lengkap</FormLabel>
+										<FormControl>
+											<Input placeholder="Masukkan nama lengkap" {...field} />
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={addForm.control}
+								name="email"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Email</FormLabel>
+										<FormControl>
+											<Input
+												type="email"
+												placeholder="nama@example.com"
+												{...field}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={addForm.control}
+								name="role"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Role</FormLabel>
+										<Select
+											onValueChange={field.onChange}
+											defaultValue={field.value}
+										>
+											<FormControl>
+												<SelectTrigger>
+													<SelectValue placeholder="Pilih role" />
+												</SelectTrigger>
+											</FormControl>
+											<SelectContent>
+												<SelectItem value="Admin">Admin</SelectItem>
+												<SelectItem value="Fasilitator">Fasilitator</SelectItem>
+												<SelectItem value="Siswa">Siswa</SelectItem>
+											</SelectContent>
+										</Select>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={addForm.control}
+								name="status"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Status</FormLabel>
+										<Select
+											onValueChange={field.onChange}
+											defaultValue={field.value}
+										>
+											<FormControl>
+												<SelectTrigger>
+													<SelectValue placeholder="Pilih status" />
+												</SelectTrigger>
+											</FormControl>
+											<SelectContent>
+												<SelectItem value="Aktif">Aktif</SelectItem>
+												<SelectItem value="Nonaktif">Nonaktif</SelectItem>
+											</SelectContent>
+										</Select>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<DialogFooter>
+								<Button type="submit">Tambah Pengguna</Button>
+							</DialogFooter>
+						</form>
+					</Form>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit User Dialog */}
+			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Edit Pengguna</DialogTitle>
+						<DialogDescription>
+							Edit informasi pengguna di bawah ini.
+						</DialogDescription>
+					</DialogHeader>
+					<Form {...editForm}>
+						<form onSubmit={editForm.handleSubmit(onEditUser)} className="space-y-4">
+							<FormField
+								control={editForm.control}
+								name="name"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Nama Lengkap</FormLabel>
+										<FormControl>
+											<Input placeholder="Masukkan nama lengkap" {...field} />
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={editForm.control}
+								name="email"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Email</FormLabel>
+										<FormControl>
+											<Input
+												type="email"
+												placeholder="nama@example.com"
+												{...field}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={editForm.control}
+								name="role"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Role</FormLabel>
+										<Select
+											onValueChange={field.onChange}
+											defaultValue={field.value}
+										>
+											<FormControl>
+												<SelectTrigger>
+													<SelectValue placeholder="Pilih role" />
+												</SelectTrigger>
+											</FormControl>
+											<SelectContent>
+												<SelectItem value="Admin">Admin</SelectItem>
+												<SelectItem value="Fasilitator">Fasilitator</SelectItem>
+												<SelectItem value="Siswa">Siswa</SelectItem>
+											</SelectContent>
+										</Select>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={editForm.control}
+								name="status"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Status</FormLabel>
+										<Select
+											onValueChange={field.onChange}
+											defaultValue={field.value}
+										>
+											<FormControl>
+												<SelectTrigger>
+													<SelectValue placeholder="Pilih status" />
+												</SelectTrigger>
+											</FormControl>
+											<SelectContent>
+												<SelectItem value="Aktif">Aktif</SelectItem>
+												<SelectItem value="Nonaktif">Nonaktif</SelectItem>
+											</SelectContent>
+										</Select>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<DialogFooter>
+								<Button type="submit">Simpan Perubahan</Button>
+							</DialogFooter>
+						</form>
+					</Form>
+				</DialogContent>
+			</Dialog>
 		</main>
 	)
 }

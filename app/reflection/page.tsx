@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +26,8 @@ export default function ReflectionPage() {
     { id: "sci-001", name: "Ilmu Alam - Fotosintesis", date: "10 Jun 2025", time: "16:00-17:30" },
   ]
 
-  const [reflections, setReflections] = useState([
+  // Default reflections data
+  const defaultReflections = [
     {
       id: 1,
       date: "12 Jun 2025",
@@ -60,7 +61,36 @@ export default function ReflectionPage() {
       classId: "sci-001",
       summary: "Antusias dengan materi fotosintesis dan terbantu dengan metode pembelajaran interaktif.",
     },
-  ])
+  ]
+  
+  const [reflections, setReflections] = useState<typeof defaultReflections>([])
+  
+  // Load reflections from localStorage on component mount
+  useEffect(() => {
+    const savedReflections = localStorage.getItem("userReflections")
+    if (savedReflections) {
+      const loadedReflections = JSON.parse(savedReflections);
+      setReflections(loadedReflections);
+      
+      // Make sure reflection stats are in sync with the actual reflections count
+      const reflectionStats = {
+        completed: loadedReflections.length,
+        pending: 1 // Assuming there's always one pending reflection for active classes
+      };
+      localStorage.setItem("reflectionStats", JSON.stringify(reflectionStats));
+    } else {
+      // Initialize with default data if no saved reflections exist
+      setReflections(defaultReflections)
+      localStorage.setItem("userReflections", JSON.stringify(defaultReflections))
+      
+      // Initialize reflection stats based on default reflections
+      const reflectionStats = {
+        completed: defaultReflections.length,
+        pending: 1 // Assuming there's always one pending reflection for active classes
+      };
+      localStorage.setItem("reflectionStats", JSON.stringify(reflectionStats));
+    }
+  }, [])
 
   // Fungsi analisis emosi yang lebih akurat
   const analyzeEmotion = (text: string) => {
@@ -264,7 +294,25 @@ export default function ReflectionPage() {
       }
 
       // Tambahkan refleksi baru ke awal array (terbaru di atas)
-      setReflections((prev) => [newReflection, ...prev])
+      const updatedReflections = [newReflection, ...reflections]
+      
+      // Update state and save to localStorage
+      setReflections(updatedReflections)
+      localStorage.setItem("userReflections", JSON.stringify(updatedReflections))
+      
+      // Update reflections stats in localStorage for dashboard
+      const reflectionStats = {
+        completed: updatedReflections.length,
+        pending: 1 // Assuming there's always one pending reflection for active classes
+      }
+      localStorage.setItem("reflectionStats", JSON.stringify(reflectionStats))
+      
+      // Dispatch a custom event to notify the dashboard component about the update
+      // This helps when both components are open in the same tab/window
+      const updateEvent = new CustomEvent('reflectionUpdated', { 
+        detail: { reflectionStats, reflections: updatedReflections } 
+      });
+      window.dispatchEvent(updateEvent);
 
       setIsSubmitting(false)
       setShowSuccess(true)

@@ -108,21 +108,10 @@ export function Sidebar({ user: propUser }: SidebarProps) {
           name: "Emosi Siswa",
           href: "/facilitator/emotions",
           icon: TrendingUp,
-        },
-        {
+        },        {
           name: "Beri Feedback",
           href: "/facilitator/feedback",
           icon: MessageSquare,
-        },
-        {
-          name: "EmoScore Siswa",
-          href: "/emoscore",
-          icon: Target,
-        },
-        {
-          name: "Ranking Emosi",
-          href: "/ranking",
-          icon: Award,
         },
         {
           name: "Pengaturan",

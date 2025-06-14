@@ -533,13 +533,68 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
     emotions: []
   });
   
+  // Function to fetch and update dashboard data from localStorage
+  const fetchDashboardData = () => {
+    try {
+      // Try to get reflection stats from localStorage
+      const savedReflectionStats = localStorage.getItem("reflectionStats");
+      if (savedReflectionStats) {
+        setReflections(JSON.parse(savedReflectionStats));
+      }
+      
+      // Try to get user reflections to calculate emotion stats
+      const savedReflections = localStorage.getItem("userReflections");
+      if (savedReflections) {
+        const reflectionsData = JSON.parse(savedReflections);
+        setAnalyticsData(prev => ({
+          ...prev,
+          count: reflectionsData.length
+        }));
+      }
+    } catch (error) {
+      console.error("Error refreshing dashboard data:", error);
+    }
+  };
+  
+  // Check for updates when component gains focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+  
   // Fetch data dari localStorage atau API ketika komponen dimuat
   useEffect(() => {
     // Mendapatkan data kelas virtual
     const fetchClasses = () => {
       try {
-        // Coba ambil data dari mock API/localStorage
-        // Untuk demo, kita gunakan data statis yang sama dengan halaman classes
+        // Try to get virtual classes from localStorage
+        const savedClasses = localStorage.getItem("virtualClasses")
+        if (savedClasses) {
+          const parsedClasses = JSON.parse(savedClasses)
+          
+          // Calculate completed, upcoming, and total
+          const completed = parsedClasses.filter((c: any) => c.status === "completed").length
+          const upcoming = parsedClasses.filter((c: any) => c.status === "upcoming" || c.status === "active").length
+          const total = parsedClasses.length
+          
+          setVirtualClasses({
+            completed,
+            upcoming,
+            total,
+          })
+          
+          return // Exit early if we found classes in localStorage
+        }
+        
+        // Fallback to default data if no localStorage data exists
         const classes = [
           {
             id: 1,
@@ -594,18 +649,36 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
           total,
         });
         
-        // Update refleksi yang telah dibuat
-        const completedReflections = completed; // Asumsikan setiap kelas completed memiliki refleksi
-        const pendingReflections = classes.filter(c => c.status === "active").length; // Kelas active memerlukan refleksi
+        // Get user reflections data to accurately count reflections
+        const savedReflections = localStorage.getItem("userReflections");
+        const reflectionsData = savedReflections ? JSON.parse(savedReflections) : [];
         
-        setReflections({
-          completed: completedReflections,
-          pending: pendingReflections,
-        });
+        // Check for reflection stats in localStorage (this will be updated when reflection is submitted)
+        const savedReflectionStats = localStorage.getItem("reflectionStats");
+        if (savedReflectionStats) {
+          // If reflection data exists in localStorage, use it
+          setReflections(JSON.parse(savedReflectionStats));
+        } else {
+          // If no saved stats, calculate based on actual reflections count
+          const completedReflections = reflectionsData.length || completed;
+          const pendingReflections = classes.filter(c => c.status === "active").length; 
+          
+          const reflectionStats = {
+            completed: completedReflections,
+            pending: pendingReflections,
+          };
+          
+          setReflections(reflectionStats);
+          // Save the default stats to localStorage
+          localStorage.setItem("reflectionStats", JSON.stringify(reflectionStats));
+        }
         
-        // Update data analytics - ensure it matches completed classes
+        // Calculate emotion distribution from reflections data if available
+        // For now we'll use the default emotion distribution since the actual calculation would be more complex
+        
+        // Update data analytics - use actual completed reflection count
         setAnalyticsData({
-          count: completed, // Analytics count always equals number of completed classes
+          count: reflectionsData.length || completed, // Use real reflection count
           emotions: [
             { name: "Senang", value: 45, color: "hsl(var(--joy))" },
             { name: "Netral", value: 25, color: "hsl(var(--neutral))" },
@@ -637,6 +710,27 @@ function SiswaDashboard({ user }: { user: { name: string; role: string } }) {
     };
     
     fetchClasses();
+
+    // Add event listener for custom events to update dashboard when reflection data changes in the same tab
+    const handleReflectionUpdate = () => {
+      fetchDashboardData();
+    };
+
+    // Add event listener for storage changes to update dashboard when reflection data changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "reflectionStats" || e.key === "userReflections") {
+        fetchDashboardData();
+      }
+    };
+
+    // Add custom event listener for same-tab updates
+    window.addEventListener('reflectionUpdated', handleReflectionUpdate as EventListener);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('reflectionUpdated', handleReflectionUpdate as EventListener);
+    };
   }, []);
 
   const recentReflections = [
