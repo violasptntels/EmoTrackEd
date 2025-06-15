@@ -291,11 +291,11 @@ export default function ClassesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    <span>{cls.materials} Materi</span>
+                    <span>{cls.materialsCount || cls.materials || 0} Materi</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span>{cls.assignments} Tugas</span>
+                    <span>{cls.assignmentsCount || cls.assignments || 0} Tugas</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-gradient-to-r from-green-400 to-blue-500" />

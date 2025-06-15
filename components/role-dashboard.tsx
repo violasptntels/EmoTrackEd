@@ -9,6 +9,8 @@ import { NotificationBell } from "@/components/notification-bell"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
 import { LineChart, BarChart, DonutChart } from "@/components/charts"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Users,
   BookOpen,
@@ -24,7 +26,9 @@ import {
   UserPlus,
   Activity,
   Video,
+  X as CloseIcon,
 } from "lucide-react"
+
 
 interface RoleDashboardProps {
   role: "admin" | "fasilitator" | "siswa"
@@ -224,6 +228,9 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [emotionDistribution, setEmotionDistribution] = useState<any[]>([]);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailData, setDetailData] = useState<any>(null);
   
   // Data emosi dari kelas virtual yang sudah diikuti
   const classEmotionData = [
@@ -296,6 +303,34 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
     }
   };
   
+  // Sample detailed data for each card
+  const detailedData = {
+    activeStudents: [
+      { id: 1, name: "Alice Johnson", lastActive: "5 menit lalu", class: "Matematika", status: "online" },
+      { id: 2, name: "Bob Smith", lastActive: "10 menit lalu", class: "B. Inggris", status: "online" },
+      { id: 3, name: "Carol Davis", lastActive: "15 menit lalu", class: "IPA", status: "online" },
+      { id: 4, name: "David Wilson", lastActive: "20 menit lalu", class: "IPS", status: "online" },
+      { id: 5, name: "Eva Martinez", lastActive: "25 menit lalu", class: "Seni", status: "offline" },
+      // More student data would go here in a real application
+    ],
+    todayClasses: [
+      { id: 1, name: "Matematika", time: "09:00-10:30", status: "completed", students: 28 },
+      { id: 2, name: "B. Inggris", time: "14:00-15:30", status: "active", students: 25 },
+      // More class data would go here in a real application
+    ],
+    needAttention: [
+      { id: 1, name: "Bob Smith", emotion: "sadness", class: "B. Inggris", severity: "high" },
+      { id: 2, name: "David Wilson", emotion: "anger", class: "IPS", severity: "medium" },
+      // More student data would go here in a real application
+    ]
+  };
+  
+  const handleCardClick = (cardType: string) => {
+    setSelectedCard(cardType);
+    setDetailData(detailedData[cardType as keyof typeof detailedData]);
+    setDetailModalOpen(true);
+  };
+  
   return (
     <main className="p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -325,7 +360,7 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
 
       {/* Fasilitator Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+        <Card onClick={() => handleCardClick("activeStudents")} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Siswa Aktif</CardTitle>
           </CardHeader>
@@ -337,10 +372,11 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Dari {classStats.totalStudents} total siswa</p>
+            <p className="text-xs text-primary mt-1">Klik untuk melihat detail →</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+        <Card onClick={() => handleCardClick("todayClasses")} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Kelas Hari Ini</CardTitle>
           </CardHeader>
@@ -352,10 +388,11 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">{classStats.completedClasses} selesai, {classStats.ongoingClasses} berlangsung</p>
+            <p className="text-xs text-primary mt-1">Klik untuk melihat detail →</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+        <Card onClick={() => handleCardClick("needAttention")} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:border-primary/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Perlu Perhatian</CardTitle>
           </CardHeader>
@@ -367,6 +404,7 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Siswa dengan emosi negatif</p>
+            <p className="text-xs text-primary mt-1">Klik untuk melihat detail →</p>
           </CardContent>
         </Card>
       </div>
@@ -509,6 +547,110 @@ function FasilitatorDashboard({ user }: { user: { name: string; role: string } }
           </CardContent>
         </Card>
       </div>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCard === "activeStudents" && "Daftar Siswa Aktif"}
+              {selectedCard === "todayClasses" && "Kelas Hari Ini"}
+              {selectedCard === "needAttention" && "Siswa yang Perlu Perhatian"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCard === "activeStudents" && `${classStats.activeStudents} siswa aktif dari total ${classStats.totalStudents}`}
+              {selectedCard === "todayClasses" && `${classStats.todayClasses} kelas dijadwalkan hari ini`}
+              {selectedCard === "needAttention" && `${classStats.needAttention} siswa menunjukkan emosi negatif`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="max-h-[60vh] overflow-auto">
+            {selectedCard === "activeStudents" && detailData && (
+              <div className="space-y-3">
+                {detailData.map((student: any) => (
+                  <Card key={student.id} className="p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{student.name}</p>
+                          <Badge variant={student.status === "online" ? "default" : "outline"}>
+                            {student.status === "online" ? "Online" : "Offline"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Kelas: {student.class}</p>
+                        <p className="text-xs text-muted-foreground">Aktif: {student.lastActive}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {selectedCard === "todayClasses" && detailData && (
+              <div className="space-y-3">
+                {detailData.map((cls: any) => (
+                  <Card key={cls.id} className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-full">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{cls.name}</p>
+                          <Badge variant={cls.status === "active" ? "default" : "secondary"}>
+                            {cls.status === "active" ? "Berlangsung" : "Selesai"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Waktu: {cls.time}</p>
+                        <p className="text-xs text-muted-foreground">Peserta: {cls.students} siswa</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {selectedCard === "needAttention" && detailData && (
+              <div className="space-y-3">
+                {detailData.map((student: any) => (
+                  <Card key={student.id} className="p-3">
+                    <div className="flex items-center gap-3">
+                      <EmotionIndicator emotion={student.emotion} size="md" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{student.name}</p>
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              student.severity === "high" ? "text-red-500 border-red-500" : 
+                              student.severity === "medium" ? "text-orange-500 border-orange-500" : 
+                              "text-yellow-500 border-yellow-500"
+                            }
+                          >
+                            {student.severity === "high" ? "Perhatian Tinggi" : 
+                             student.severity === "medium" ? "Perhatian Sedang" : "Perhatian Ringan"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Kelas: {student.class}</p>
+                        <p className="text-xs text-muted-foreground">Emosi terdeteksi: {student.emotion}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
