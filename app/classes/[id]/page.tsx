@@ -40,7 +40,9 @@ export default function ClassDetailPage() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isClassFinished, setIsClassFinished] = useState(false) // State baru untuk menandai kelas selesai
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [classSessionFinished, setClassSessionFinished] = useState(false) // State baru untuk melacak status sesi kelas
 
   // Additional states for Zoom-like meeting experience
   const [isScreenSharing, setIsScreenSharing] = useState(false)
@@ -69,6 +71,22 @@ export default function ClassDetailPage() {
       if (emotionInterval) clearInterval(emotionInterval)
     }
   }, [isVideoOn])
+
+  // Simulasi kelas selesai setelah beberapa waktu
+  useEffect(() => {
+    if (user.role === "Siswa") {
+      // Simulasi kelas selesai setelah 30 detik (untuk demonstrasi)
+      const classEndTimer = setTimeout(() => {
+        setIsClassFinished(true)
+        if (isVideoOn) {
+          stopWebcam()
+        }
+        setError("Sesi kelas virtual telah selesai.")
+      }, 30000) // 30 detik untuk demonstrasi
+
+      return () => clearTimeout(classEndTimer)
+    }
+  }, [user.role])
 
   // Timer for meeting duration
   useEffect(() => {
@@ -161,6 +179,12 @@ export default function ClassDetailPage() {
   const startWebcam = async () => {
     setIsLoading(true)
     setError("")
+    
+    // Pastikan tidak ada stream aktif sebelum meminta stream baru
+    if (stream) {
+      stopWebcam();
+    }
+    
     try {
       // Cek permission kamera
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -168,6 +192,18 @@ export default function ClassDetailPage() {
         setIsLoading(false)
         return
       }
+      
+      // Coba dapatkan daftar perangkat kamera terlebih dahulu
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      if (videoDevices.length === 0) {
+        setError("Tidak ada kamera yang terdeteksi pada perangkat ini.");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Coba akses kamera dengan constraint yang lebih fleksibel
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -175,23 +211,47 @@ export default function ClassDetailPage() {
           facingMode: "user",
         },
         audio: false,
-      })
+      }).catch(async (err) => {
+        console.warn("Error dengan constraint ideal, mencoba constraint minimal:", err);
+        
+        // Jika gagal dengan constraint ideal, coba dengan constraint minimal
+        return await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      });
+      
       setStream(mediaStream)
+      
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
+        videoRef.current.srcObject = mediaStream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((e) => {
-            console.error("Error playing video:", e)
-            setError("Tidak dapat memutar video. Silakan coba lagi.")
-          })
-        }
+            console.error("Error playing video:", e);
+            setError("Tidak dapat memutar video. Silakan coba lagi.");
+          });
+        };
       } else {
-        setError("Element video tidak ditemukan.")
+        setError("Element video tidak ditemukan.");
       }
+      
       setIsVideoOn(true)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error accessing webcam:", err)
-      setError("Tidak dapat mengakses kamera. Pastikan kamera tidak digunakan aplikasi lain dan izin sudah diberikan.")
+      
+      let errorMessage = "Tidak dapat mengakses kamera.";
+      
+      if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        errorMessage = "Kamera sedang digunakan aplikasi lain. Silakan tutup aplikasi tersebut dan coba lagi.";
+      } else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        errorMessage = "Akses ke kamera ditolak. Silakan berikan izin kamera dan coba lagi.";
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        errorMessage = "Tidak ada perangkat kamera yang ditemukan.";
+      } else if (err.name === "OverconstrainedError") {
+        errorMessage = "Konfigurasi kamera tidak didukung perangkat ini.";
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false)
     }
@@ -199,42 +259,136 @@ export default function ClassDetailPage() {
 
   const stopWebcam = () => {
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
+      try {
+        // Pastikan untuk menghentikan semua track
+        stream.getTracks().forEach((track) => {
+          if (track.readyState === 'live') {
+            track.stop();
+          }
+        });
+      } catch (err) {
+        console.error("Error stopping tracks:", err);
+      }
+      setStream(null);
     }
+    
+    // Reset video element
     if (videoRef.current) {
-      videoRef.current.srcObject = null
+      try {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      } catch (err) {
+        console.error("Error resetting video element:", err);
+      }
     }
-    setIsVideoOn(false)
-    setCurrentEmotion("neutral")
+    
+    setIsVideoOn(false);
+    setCurrentEmotion("neutral");
   }
 
   const toggleVideo = () => {
     if (isVideoOn) {
       stopWebcam()
     } else {
+      // Periksa apakah kelas sudah selesai sebelum mengizinkan siswa untuk mengaktifkan kamera
+      if (isClassFinished && user.role === "Siswa") {
+        setError("Sesi kelas virtual telah selesai. Anda tidak dapat bergabung lagi.")
+        return
+      }
       startWebcam()
     }
   }
 
   const toggleAudio = async () => {
+    // Periksa apakah kelas sudah selesai sebelum mengizinkan siswa untuk mengaktifkan mikrofon
+    if (isClassFinished && user.role === "Siswa") {
+      setError("Sesi kelas virtual telah selesai. Anda tidak dapat bergabung lagi.")
+      return
+    }
+
     if (!isAudioOn) {
       try {
+        // Cek perangkat audio tersedia
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+        
+        if (audioDevices.length === 0) {
+          setError("Tidak ada mikrofon yang terdeteksi pada perangkat ini.");
+          return;
+        }
+        
         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .catch(async (err) => {
+            console.warn("Error accessing microphone with default constraints:", err);
+            // Coba dengan constraint yang lebih sederhana
+            return await navigator.mediaDevices.getUserMedia({ audio: true });
+          });
+          
         setIsAudioOn(true)
         // Simpan audio stream untuk digunakan nanti
         console.log("Audio started:", audioStream)
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error accessing microphone:", err)
-        setError(
-          "Tidak dapat mengakses mikrofon. Pastikan mikrofon tidak digunakan aplikasi lain dan izin sudah diberikan.",
-        )
+        
+        let errorMessage = "Tidak dapat mengakses mikrofon.";
+        
+        if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+          errorMessage = "Mikrofon sedang digunakan aplikasi lain. Silakan tutup aplikasi tersebut dan coba lagi.";
+        } else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          errorMessage = "Akses ke mikrofon ditolak. Silakan berikan izin mikrofon dan coba lagi.";
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+          errorMessage = "Tidak ada perangkat mikrofon yang ditemukan.";
+        }
+        
+        setError(errorMessage);
       }
     } else {
       setIsAudioOn(false)
       console.log("Audio stopped")
     }
   }
+
+  // Simulasi kelas dimulai dan diakhiri oleh fasilitator
+  useEffect(() => {
+    // Simulasi kelas selesai setelah beberapa waktu (30 detik untuk demonstrasi)
+    const classEndTimer = setTimeout(() => {
+      // Jika saat ini status kelas adalah "live", kita simulasikan bahwa kelas sudah selesai
+      if (classData.status === "live") {
+        setClassSessionFinished(true);
+        if (isVideoOn) {
+          stopWebcam();
+        }
+        // Jika perlu, tambahkan notifikasi untuk memberi tahu pengguna bahwa kelas sudah selesai
+      }
+    }, 30000); // 30 detik untuk demonstrasi, bisa disesuaikan
+
+    return () => clearTimeout(classEndTimer);
+  }, []);
+
+  // Function to handle join class button
+  const handleJoinClass = () => {
+    if (classSessionFinished) {
+      // Jika kelas sudah selesai, tampilkan pesan error
+      setError("Kelas virtual sudah selesai. Anda tidak dapat bergabung lagi.");
+    } else {
+      // Jika kelas masih berjalan, mulai webcam dan bergabung dengan kelas
+      startWebcam();
+    }
+  }
+
+  // Cleanup resources when component unmounts
+  useEffect(() => {
+    return () => {
+      // Pastikan untuk menghentikan semua track media saat komponen unmount
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          if (track.readyState === 'live') {
+            track.stop();
+          }
+        });
+      }
+    };
+  }, [stream]);
 
   return (
     <main className="p-4 md:p-6">
@@ -423,7 +577,7 @@ export default function ClassDetailPage() {
                         variant={isVideoOn ? "default" : "outline"}
                         size="lg"
                         onClick={toggleVideo}
-                        disabled={isLoading}
+                        disabled={isLoading || (isClassFinished && user.role === "Siswa")}
                         className="rounded-full w-14 h-14 p-0 flex items-center justify-center relative group"
                       >
                         {isLoading ? (
@@ -442,6 +596,7 @@ export default function ClassDetailPage() {
                         variant={isAudioOn ? "default" : "outline"}
                         size="lg"
                         onClick={toggleAudio}
+                        disabled={isClassFinished && user.role === "Siswa"}
                         className="rounded-full w-14 h-14 p-0 flex items-center justify-center relative group"
                       >
                         {isAudioOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
@@ -1012,7 +1167,9 @@ export default function ClassDetailPage() {
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs text-muted-foreground">Online</span>
+                          <span className="text-xs text-muted-foreground">
+                            {participant.isOnline ? "Online" : "Offline"}
+                          </span>
                         </div>
                       </div>
                     </div>
