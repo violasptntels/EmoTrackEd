@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Users, Video, FileText, MessageSquare, Clock, Calendar, BarChart3, UserPlus, Mail, Send, Plus, BookOpen } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Users, Video, VideoOff, Mic, MicOff, FileText, MessageSquare, Clock, Calendar, BarChart3, UserPlus, Mail, Send, Plus, BookOpen, AlertCircle } from "lucide-react"
 
 export default function ManageClassPage() {
   const params = useParams()
@@ -22,28 +22,11 @@ export default function ManageClassPage() {
   const [message, setMessage] = useState("")
   const [classData, setClassData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  
-  // Dialog untuk penambahan materi dan tugas
-  const [materialDialogOpen, setMaterialDialogOpen] = useState(false)
-  const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false)
-  const [newMaterial, setNewMaterial] = useState({
-    title: "",
-    description: "",
-    fileType: "pdf", // jenis file: pdf, ppt, doc, dll
-    fileName: "" // nama file yang diupload
-  })
-  const [newAssignment, setNewAssignment] = useState({
-    title: "",
-    description: "",
-    dueDate: "",
-    points: "10",
-    fileType: "pdf", // jenis file: pdf, doc, dll
-    fileName: "" // nama file yang diupload
-  })
-  
-  // State untuk file uploads
-  const [materialFile, setMaterialFile] = useState<File | null>(null)
-  const [assignmentFile, setAssignmentFile] = useState<File | null>(null)
+  const [showVideoCall, setShowVideoCall] = useState(false)
+  const [isVideoOn, setIsVideoOn] = useState(false)
+  const [isAudioOn, setIsAudioOn] = useState(false)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     const userData = localStorage.getItem("userData")
@@ -161,190 +144,53 @@ export default function ManageClassPage() {
       setMessage("")
     }
   }
-  
-  // Fungsi untuk menambahkan materi baru
-  const handleAddMaterial = () => {
-    if (!newMaterial.title.trim()) {
-      alert("Judul materi harus diisi")
-      return
-    }
-    
-    if (!materialFile) {
-      alert("File materi harus diunggah")
-      return
-    }
-    
-    try {
-      // Ambil data kelas dari localStorage
-      const savedClasses = localStorage.getItem("virtualClasses")
-      if (savedClasses) {
-        const parsedClasses = JSON.parse(savedClasses)
-        const updatedClasses = parsedClasses.map((cls: any) => {
-          if (cls.id.toString() === params?.id?.toString()) {
-            // Pastikan ada array materials
-            const materials = cls.materials || []
-            
-            // Tambahkan materi baru
-            const newMaterialItem = {
-              id: Date.now(),
-              title: newMaterial.title,
-              description: newMaterial.description,
-              fileName: newMaterial.fileName,
-              fileType: newMaterial.fileType,
-              fileSize: materialFile.size,
-              dateAdded: new Date().toISOString(),
-              // Dalam aplikasi nyata, di sini akan ada URL dari cloud storage setelah file diupload
-              fileUrl: `#/demo-file/${newMaterial.fileName}`
-            }
-            
-            return {
-              ...cls,
-              materials: [newMaterialItem, ...materials],
-              // Update jumlah materi untuk ditampilkan di card kelas
-              materialsCount: (cls.materialsCount || 0) + 1
-            }
-          }
-          return cls
-        })
-        
-        // Simpan kembali ke localStorage
-        localStorage.setItem("virtualClasses", JSON.stringify(updatedClasses))
-        
-        // Update state classData
-        const updatedClass = updatedClasses.find((cls: any) => cls.id.toString() === params?.id?.toString())
-        if (updatedClass) {
-          setClassData(updatedClass)
-        }
-        
-        // Reset form dan tutup dialog
-        setNewMaterial({
-          title: "",
-          description: "",
-          fileType: "pdf",
-          fileName: ""
-        })
-        setMaterialFile(null)
-        setMaterialDialogOpen(false)
-        
-        alert("Materi berhasil ditambahkan")
-      }
-    } catch (error) {
-      console.error("Error adding material:", error)
-      alert("Gagal menambahkan materi. Silakan coba lagi.")
-    }
-  }
-  
-  // Fungsi untuk menambahkan tugas baru
-  const handleAddAssignment = () => {
-    if (!newAssignment.title.trim()) {
-      alert("Judul tugas harus diisi")
-      return
-    }
-    
-    if (!assignmentFile) {
-      alert("File tugas harus diunggah")
-      return
-    }
-    
-    try {
-      // Ambil data kelas dari localStorage
-      const savedClasses = localStorage.getItem("virtualClasses")
-      if (savedClasses) {
-        const parsedClasses = JSON.parse(savedClasses)
-        const updatedClasses = parsedClasses.map((cls: any) => {
-          if (cls.id.toString() === params?.id?.toString()) {
-            // Pastikan ada array assignments
-            const assignments = cls.assignments || []
-            
-            // Tambahkan tugas baru
-            const newAssignmentItem = {
-              id: Date.now(),
-              title: newAssignment.title,
-              description: newAssignment.description,
-              dueDate: newAssignment.dueDate,
-              points: newAssignment.points,
-              fileName: newAssignment.fileName,
-              fileType: newAssignment.fileType,
-              fileSize: assignmentFile.size,
-              dateAdded: new Date().toISOString(),
-              status: "active",
-              // Dalam aplikasi nyata, di sini akan ada URL dari cloud storage setelah file diupload
-              fileUrl: `#/demo-file/${newAssignment.fileName}`
-            }
-            
-            return {
-              ...cls,
-              assignments: [newAssignmentItem, ...assignments],
-              // Update jumlah assignments untuk ditampilkan di card kelas
-              assignmentsCount: (cls.assignmentsCount || 0) + 1
-            }
-          }
-          return cls
-        })
-        
-        // Simpan kembali ke localStorage
-        localStorage.setItem("virtualClasses", JSON.stringify(updatedClasses))
-        
-        // Update state classData
-        const updatedClass = updatedClasses.find((cls: any) => cls.id.toString() === params?.id?.toString())
-        if (updatedClass) {
-          setClassData(updatedClass)
-        }
-        
-        // Reset form dan tutup dialog
-        setNewAssignment({
-          title: "",
-          description: "",
-          dueDate: "",
-          points: "10",
-          fileType: "pdf",
-          fileName: ""
-        })
-        setAssignmentFile(null)
-        setAssignmentDialogOpen(false)
-        
-        alert("Tugas berhasil ditambahkan")
-      }
-    } catch (error) {
-      console.error("Error adding assignment:", error)
-      alert("Gagal menambahkan tugas. Silakan coba lagi.")
-    }
-  }
 
-  // Fungsi untuk menangani upload file materi
-  const handleMaterialFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setMaterialFile(file);
+  const handleStartVideoCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
       
-      // Ekstrak ekstensi file untuk fileType
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'unknown';
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
       
-      // Update newMaterial dengan informasi file
-      setNewMaterial({
-        ...newMaterial,
-        fileName: file.name,
-        fileType: fileExt
-      });
+      setIsVideoOn(true);
+      setIsAudioOn(true);
+      setShowVideoCall(true);
+    } catch (error) {
+      console.error("Error accessing camera and microphone:", error);
+      alert("Tidak dapat mengakses kamera dan mikrofon. Pastikan Anda memberikan izin.");
     }
   };
-  
-  // Fungsi untuk menangani upload file tugas
-  const handleAssignmentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAssignmentFile(file);
-      
-      // Ekstrak ekstensi file untuk fileType
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'unknown';
-      
-      // Update newAssignment dengan informasi file
-      setNewAssignment({
-        ...newAssignment,
-        fileName: file.name,
-        fileType: fileExt
-      });
+
+  const toggleVideo = () => {
+    if (localStream) {
+      const videoTracks = localStream.getVideoTracks();
+      if (videoTracks.length > 0) {
+        const track = videoTracks[0];
+        track.enabled = !track.enabled;
+        setIsVideoOn(track.enabled);
+      }
     }
+  };
+
+  const toggleAudio = () => {
+    if (localStream) {
+      const audioTracks = localStream.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const track = audioTracks[0];
+        track.enabled = !track.enabled;
+        setIsAudioOn(track.enabled);
+      }
+    }
+  };
+
+  const stopVideoCall = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    setShowVideoCall(false);
   };
 
   if (loading) {
@@ -377,16 +223,20 @@ export default function ManageClassPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Main Content */}
-            <div className="lg:col-span-3">
-              <Tabs defaultValue="students" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Alert className="mb-6">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <AlertDescription>
+                  Materi pembelajaran dan tugas hanya dapat ditambahkan saat pembuatan kelas baru. Hal ini untuk memastikan semua peserta kelas memiliki akses ke materi dan tugas yang sama sejak awal.
+                </AlertDescription>
+              </Alert>
+
+              <Tabs defaultValue="students" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="students">Siswa</TabsTrigger>
                   <TabsTrigger value="emotions">Emosi</TabsTrigger>
-                  <TabsTrigger value="materials">Materi</TabsTrigger>
-                  <TabsTrigger value="assignments">Tugas</TabsTrigger>
-                  <TabsTrigger value="broadcast">Pesan</TabsTrigger>
+                  <TabsTrigger value="chat">Pesan Broadcast</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="students" className="space-y-4">
@@ -429,10 +279,7 @@ export default function ManageClassPage() {
                             </div>
                             <div className="flex items-center gap-3">
                               <EmotionIndicator emotion={student.emotion} size="md" showLabel />
-                              <Button size="sm" variant="outline">
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Chat
-                              </Button>
+                              {/* No individual chat buttons */}
                             </div>
                           </div>
                         ))}
@@ -490,174 +337,65 @@ export default function ManageClassPage() {
                   </Card>
                 </TabsContent>
 
-                {/* Tab Materi */}
-                <TabsContent value="materials" className="space-y-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <BookOpen className="h-5 w-5" />
-                          Materi Pembelajaran
-                        </CardTitle>
-                        <CardDescription>Kelola materi untuk kelas ini</CardDescription>
-                      </div>
-                      <Button onClick={() => setMaterialDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Tambah Materi
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      {classData?.materials && classData.materials.length > 0 ? (
-                        <div className="space-y-4">
-                          {classData.materials.map((material: any) => (
-                            <div key={material.id} className="p-4 border rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-medium">{material.title}</h3>
-                                <Badge variant="outline">
-                                  {new Date(material.dateAdded).toLocaleDateString()}
-                                </Badge>
-                              </div>
-                              {material.description && (
-                                <p className="text-sm text-muted-foreground mb-3">{material.description}</p>
-                              )}
-                              <div className="flex items-center justify-between mt-3">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Badge variant="secondary">{material.fileType?.toUpperCase() || 'FILE'}</Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {material.fileName || "File Materi"}
-                                    {material.fileSize && ` (${(material.fileSize / (1024 * 1024)).toFixed(2)} MB)`}
-                                  </span>
-                                </div>
-                                <Button size="sm" variant="outline" asChild>
-                                  <a href={material.fileUrl || "#"} target="_blank" rel="noopener noreferrer">
-                                    Unduh Materi
-                                  </a>
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                          <h3 className="text-lg font-medium mb-2">Belum ada materi</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Tambahkan materi pembelajaran untuk kelas ini
-                          </p>
-                          <Button onClick={() => setMaterialDialogOpen(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Tambah Materi Pertama
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* Tab Tugas */}
-                <TabsContent value="assignments" className="space-y-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <FileText className="h-5 w-5" />
-                          Tugas Kelas
-                        </CardTitle>
-                        <CardDescription>Kelola tugas untuk kelas ini</CardDescription>
-                      </div>
-                      <Button onClick={() => setAssignmentDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Tambah Tugas
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      {classData?.assignments && classData.assignments.length > 0 ? (
-                        <div className="space-y-4">
-                          {classData.assignments.map((assignment: any) => (
-                            <div key={assignment.id} className="p-4 border rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-medium">{assignment.title}</h3>
-                                <Badge variant={assignment.dueDate ? "outline" : "secondary"}>
-                                  {assignment.dueDate ? `Due: ${assignment.dueDate}` : "No Due Date"}
-                                </Badge>
-                              </div>
-                              {assignment.description && (
-                                <p className="text-sm text-muted-foreground mb-3">{assignment.description}</p>
-                              )}
-                              <div className="flex items-center gap-2 text-sm mb-3">
-                                <Badge variant="secondary">{assignment.fileType?.toUpperCase() || 'FILE'}</Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  {assignment.fileName || "File Tugas"}
-                                  {assignment.fileSize && ` (${(assignment.fileSize / (1024 * 1024)).toFixed(2)} MB)`}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <Badge variant="outline">{assignment.points} points</Badge>
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" asChild>
-                                    <a href={assignment.fileUrl || "#"} target="_blank" rel="noopener noreferrer">
-                                      Unduh Tugas
-                                    </a>
-                                  </Button>
-                                  <Button size="sm" variant="outline">
-                                    Lihat Pengumpulan
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                          <h3 className="text-lg font-medium mb-2">Belum ada tugas</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Tambahkan tugas untuk kelas ini
-                          </p>
-                          <Button onClick={() => setAssignmentDialogOpen(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Tambah Tugas Pertama
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="broadcast" className="space-y-4">
+                <TabsContent value="chat" className="space-y-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Mail className="h-5 w-5" />
-                        Kirim Pesan ke Semua Siswa
-                      </CardTitle>
-                      <CardDescription>Kirim pengumuman atau instruksi ke semua siswa yang sedang aktif</CardDescription>
+                      <CardTitle>Pesan Broadcast</CardTitle>
+                      <CardDescription>Kirim pesan ke semua siswa yang hadir dalam kelas saat kelas virtual dimulai</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="broadcast-message">Pesan</Label>
-                          <Textarea
-                            id="broadcast-message"
-                            placeholder="Ketik pesan untuk semua siswa..."
-                            rows={4}
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                          />
+                      {showVideoCall ? (
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="text-sm font-medium mb-2">Daftar Siswa ({students.filter(s => s.isOnline).length} online)</h3>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {students.map((student) => (
+                                <Badge key={student.id} variant={student.isOnline ? "default" : "outline"} className="flex items-center gap-1">
+                                  <div className={`w-2 h-2 rounded-full ${student.isOnline ? "bg-white" : "bg-gray-400"}`} />
+                                  {student.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <Label htmlFor="broadcast-message">Pesan Broadcast</Label>
+                            <Textarea 
+                              id="broadcast-message"
+                              placeholder="Ketik pesan untuk dikirim ke semua siswa..."
+                              value={message}
+                              onChange={(e) => setMessage(e.target.value)}
+                              className="min-h-[120px]"
+                            />
+                            <Button onClick={handleSendMessage} disabled={!message.trim()} className="w-full sm:w-auto">
+                              <Send className="h-4 w-4 mr-2" />
+                              Kirim ke Semua Siswa
+                            </Button>
+                          </div>
                         </div>
-                        <Button onClick={handleSendMessage} disabled={!message.trim()}>
-                          <Send className="h-4 w-4 mr-2" />
-                          Kirim ke Semua Siswa
-                        </Button>
-                      </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <Video className="h-10 w-10 text-muted-foreground mb-4" />
+                          <h3 className="text-lg font-medium">Kelas Virtual Belum Dimulai</h3>
+                          <p className="text-muted-foreground max-w-md mt-2">
+                            Fitur pesan broadcast hanya tersedia ketika kelas virtual sedang berlangsung. Silakan mulai kelas virtual terlebih dahulu dengan menekan tombol "Mulai Kelas Virtual".
+                          </p>
+                          <Button onClick={handleStartVideoCall} className="mt-6">
+                            <Video className="h-4 w-4 mr-2" />
+                            Mulai Kelas Virtual
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
+
+
               </Tabs>
             </div>
-
-            {/* Sidebar */}
-            <div className="space-y-4">
+    
+                {/* Sidebar */}
+                <div className="space-y-4">
               {/* Class Info */}
               <Card>
                 <CardHeader>
@@ -687,19 +425,34 @@ export default function ManageClassPage() {
                   <CardTitle>Aksi Cepat</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    onClick={handleStartVideoCall}
+                  >
                     <Video className="mr-2 h-4 w-4" />
-                    Mulai Presentasi
+                    Mulai Kelas Virtual
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => alert("Materi pembelajaran telah dibagikan kepada semua siswa")}
+                  >
                     <FileText className="mr-2 h-4 w-4" />
                     Bagikan Materi
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => alert("Statistik kelas sedang dimuat...")}
+                  >
                     <BarChart3 className="mr-2 h-4 w-4" />
                     Lihat Statistik
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => alert("Link undangan telah disalin ke clipboard")}
+                  >
                     <UserPlus className="mr-2 h-4 w-4" />
                     Undang Siswa
                   </Button>
@@ -707,149 +460,151 @@ export default function ManageClassPage() {
               </Card>
             </div>
           </div>
-
-          {/* Dialog untuk menambahkan materi baru */}
-          <Dialog open={materialDialogOpen} onOpenChange={setMaterialDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Tambah Materi Pembelajaran</DialogTitle>
-                <DialogDescription>
-                  Unggah materi pembelajaran baru untuk kelas ini. Materi akan tersedia bagi semua siswa.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="material-title">Judul Materi <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="material-title"
-                    placeholder="Contoh: Pengenalan Aljabar Linear"
-                    value={newMaterial.title}
-                    onChange={(e) => setNewMaterial({ ...newMaterial, title: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="material-description">Deskripsi (opsional)</Label>
-                  <Textarea
-                    id="material-description"
-                    placeholder="Deskripsi singkat tentang materi ini"
-                    rows={3}
-                    value={newMaterial.description}
-                    onChange={(e) => setNewMaterial({ ...newMaterial, description: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="material-file">Unggah File <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="material-file"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                    onChange={handleMaterialFileChange}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Unggah file materi pembelajaran (PDF, Word, PowerPoint, Excel)
-                  </p>
-                  {materialFile && (
-                    <div className="mt-2 px-3 py-2 bg-secondary/30 rounded-md text-sm flex items-center justify-between">
-                      <span>{materialFile.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {(materialFile.size / (1024 * 1024)).toFixed(2)} MB
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setMaterialDialogOpen(false)}>
-                  Batal
-                </Button>
-                <Button onClick={handleAddMaterial} disabled={!materialFile}>
-                  Unggah Materi
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* Dialog untuk menambahkan tugas baru */}
-          <Dialog open={assignmentDialogOpen} onOpenChange={setAssignmentDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Tambah Tugas Baru</DialogTitle>
-                <DialogDescription>
-                  Unggah soal tugas baru untuk kelas ini. Tugas akan tersedia bagi semua siswa.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-title">Judul Tugas <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="assignment-title"
-                    placeholder="Contoh: Latihan Soal Aljabar Linear"
-                    value={newAssignment.title}
-                    onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-description">Deskripsi (opsional)</Label>
-                  <Textarea
-                    id="assignment-description"
-                    placeholder="Deskripsi singkat tentang tugas ini"
-                    rows={3}
-                    value={newAssignment.description}
-                    onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-duedate">Tanggal Deadline (opsional)</Label>
-                  <Input
-                    id="assignment-duedate"
-                    type="datetime-local"
-                    value={newAssignment.dueDate}
-                    onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-points">Poin Nilai</Label>
-                  <Input
-                    id="assignment-points"
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newAssignment.points}
-                    onChange={(e) => setNewAssignment({ ...newAssignment, points: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-file">Unggah File Tugas <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="assignment-file"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    onChange={handleAssignmentFileChange}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Unggah file soal tugas (PDF, Word, Text)
-                  </p>
-                  {assignmentFile && (
-                    <div className="mt-2 px-3 py-2 bg-secondary/30 rounded-md text-sm flex items-center justify-between">
-                      <span>{assignmentFile.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {(assignmentFile.size / (1024 * 1024)).toFixed(2)} MB
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAssignmentDialogOpen(false)}>
-                  Batal
-                </Button>
-                <Button onClick={handleAddAssignment} disabled={!assignmentFile}>
-                  Unggah Tugas
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </>
+      )}
+
+      {/* Video Call Interface */}
+      {showVideoCall && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex flex-col z-50 p-4">
+          <div className="flex justify-between items-center mb-4 text-white">
+            <h2 className="text-xl font-bold">Kelas Virtual: {classData?.title}</h2>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-green-600 text-white border-green-500">
+                <div className="w-2 h-2 rounded-full bg-white mr-1 animate-pulse" />
+                Sedang Berlangsung
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={stopVideoCall} className="text-white hover:bg-red-700">
+                Tutup
+              </Button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4 h-full">
+            {/* Video area - 3/4 width */}
+            <div className="col-span-3 overflow-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Fasilitator's Video */}
+                <div className="relative bg-gray-800 rounded-lg aspect-video">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover rounded-lg" />
+                  <div className="absolute bottom-2 left-2 flex items-center bg-black bg-opacity-70 px-2 py-1 rounded-md">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2" />
+                    <span className="text-white text-sm">Anda (Fasilitator)</span>
+                  </div>
+                  <div className="absolute bottom-2 right-2 flex gap-2">
+                    <Button 
+                      size="icon" 
+                      variant={isAudioOn ? "ghost" : "destructive"} 
+                      onClick={toggleAudio} 
+                      className="h-8 w-8 rounded-full bg-black bg-opacity-70"
+                    >
+                      {isAudioOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                    </Button>
+                    <Button 
+                      size="icon" 
+                      variant={isVideoOn ? "ghost" : "destructive"} 
+                      onClick={toggleVideo} 
+                      className="h-8 w-8 rounded-full bg-black bg-opacity-70"
+                    >
+                      {isVideoOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Students' Videos (Simulated) */}
+                {students.map((student) => (
+                  <div key={student.id} className="relative bg-gray-800 rounded-lg aspect-video overflow-hidden">
+                    {student.isOnline ? (
+                      <>
+                        <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                          {/* Placeholder for student video - in a real app this would be a video stream */}
+                          <Avatar className="h-20 w-20">
+                            <AvatarImage src={student.avatar || "/placeholder.svg"} />
+                            <AvatarFallback>{student.name.substring(0, 2)}</AvatarFallback>
+                          </Avatar>
+                        </div>
+                        <div className="absolute bottom-2 left-2 flex items-center bg-black bg-opacity-70 px-2 py-1 rounded-md">
+                          <div className="w-2 h-2 rounded-full bg-green-500 mr-2" />
+                          <span className="text-white text-sm">{student.name}</span>
+                        </div>
+                        <div className="absolute top-2 right-2">
+                          <EmotionIndicator emotion={student.emotion} size="sm" showLabel={false} />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
+                        <Avatar className="h-16 w-16 mb-2 opacity-50">
+                          <AvatarImage src={student.avatar || "/placeholder.svg"} />
+                          <AvatarFallback>{student.name.substring(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <p className="text-gray-400 text-center text-sm">{student.name}</p>
+                        <p className="text-gray-500 text-xs">Offline</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Broadcast Chat area - 1/4 width */}
+            <div className="col-span-1 bg-gray-800 bg-opacity-60 rounded-lg p-4 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white text-lg font-medium">Pesan Broadcast</h3>
+                <Badge variant="outline" className="text-white border-white/20">
+                  {students.filter(s => s.isOnline).length} online
+                </Badge>
+              </div>
+              
+              <div className="flex-grow bg-black bg-opacity-30 rounded-lg p-3 mb-4 overflow-y-auto">
+                <p className="text-gray-400 text-center text-sm py-4">
+                  Pesan akan muncul di sini
+                </p>
+              </div>
+              
+              <div className="flex gap-2">
+                <Textarea 
+                  placeholder="Kirim pesan ke semua siswa..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="bg-black bg-opacity-30 text-white border-gray-700 focus:border-gray-500 min-h-[80px] resize-none"
+                />
+                <Button 
+                  onClick={handleSendMessage} 
+                  disabled={!message.trim()} 
+                  className="self-end"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Control Bar */}
+          <div className="flex justify-center items-center gap-4 mt-4">
+            <Button 
+              variant={isAudioOn ? "outline" : "destructive"}
+              onClick={toggleAudio} 
+              className="rounded-full px-4 bg-black bg-opacity-50 text-white border-white/20"
+            >
+              {isAudioOn ? <Mic className="h-4 w-4 mr-2" /> : <MicOff className="h-4 w-4 mr-2" />}
+              {isAudioOn ? "Mikrofon Aktif" : "Mikrofon Nonaktif"}
+            </Button>
+            <Button 
+              variant={isVideoOn ? "outline" : "destructive"}
+              onClick={toggleVideo} 
+              className="rounded-full px-4 bg-black bg-opacity-50 text-white border-white/20"
+            >
+              {isVideoOn ? <Video className="h-4 w-4 mr-2" /> : <VideoOff className="h-4 w-4 mr-2" />}
+              {isVideoOn ? "Kamera Aktif" : "Kamera Nonaktif"}
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={stopVideoCall} 
+              className="rounded-full px-4"
+            >
+              Akhiri Kelas Virtual
+            </Button>
+          </div>
+        </div>
       )}
     </main>
   )
