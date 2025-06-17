@@ -1,0 +1,100 @@
+/* Dashboard animations and enhanced styling */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 4s infinite;
+}
+
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.card-gradient-overlay {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-gradient-overlay::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom right, 
+    rgba(var(--primary-rgb), 0.08) 0%, 
+    rgba(var(--primary-rgb), 0) 40%,
+    rgba(var(--primary-rgb), 0) 60%,
+    rgba(var(--primary-rgb), 0.08) 100%);
+  pointer-events: none;
+}
+
+.emotion-card-enter {
+  transition: all 0.3s ease;
+}
+
+.emotion-card-enter:hover {
+  border-color: hsl(var(--primary));
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Glow effect for important elements */
+.glow-on-hover {
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.glow-on-hover:hover::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: calc(var(--radius) + 2px);
+  background: linear-gradient(45deg, 
+    hsl(var(--primary)), 
+    rgba(var(--primary-rgb), 0.2), 
+    rgba(var(--primary-rgb), 0.1));
+  z-index: -1;
+  filter: blur(8px);
+}

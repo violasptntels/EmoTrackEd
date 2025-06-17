@@ -1,0 +1,84 @@
+@media print {
+  /* Hide all content except the report */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Only show the report container and its children */
+  #report-container,
+  #report-container * {
+    visibility: visible;
+  }
+  
+  /* Position the report at the top */
+  #report-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  
+  /* Hide elements that shouldn't be printed */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Add page breaks where needed */
+  .page-break {
+    page-break-before: always;
+  }
+  
+  /* Ensure charts are fully visible */
+  .recharts-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+  
+  /* Better typography for print */
+  body {
+    font-size: 12pt;
+  }
+  
+  h1 {
+    font-size: 18pt;
+    margin-bottom: 0.5cm;
+  }
+  
+  h2 {
+    font-size: 16pt;
+  }
+  
+  h3 {
+    font-size: 14pt;
+  }
+  
+  /* Ensure cards have borders in print */
+  .card {
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+    margin-bottom: 0.5cm;
+  }
+  
+  /* Background colors may not print well, ensure contrast */
+  .bg-muted {
+    background-color: #f9f9f9 !important;
+    border: 1px solid #eee;
+  }
+  
+  /* Ensure dark mode colors don't cause issues in print */
+  [data-theme="dark"] {
+    --background: white;
+    --foreground: black;
+    --card: white;
+    --card-foreground: black;
+    --muted: #f9f9f9;
+    --muted-foreground: #555;
+  }
+}
+
+/* Additional print settings */
+@page {
+  size: A4;
+  margin: 1cm;
+}
