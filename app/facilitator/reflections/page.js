@@ -9,6 +9,8 @@ import { EmotionIndicator } from "@/components/emotion-indicator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Calendar, Clock, Filter, Download, Eye, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function FacilitatorReflectionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,7 +88,76 @@ export default function FacilitatorReflectionsPage() {
 
     return matchesSearch && matchesEmotion
   })
-
+  // Reference the filtered reflections instead of static data
+  const needsAttentionCount = filteredReflections.filter((r) => r.needsAttention).length;
+  const positiveEmotionCount = filteredReflections.filter((r) => r.emotion === "joy").length;
+  
+  // Feedback dialog state
+  const [selectedReflection, setSelectedReflection] = useState(null);
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  
+  // Handle opening feedback dialog for a specific reflection
+  const handleOpenFeedback = (reflection) => {
+    setSelectedReflection(reflection);
+    setFeedbackText("");
+    setFeedbackDialogOpen(true);
+  };
+  
+  // Handle sending feedback
+  const handleSendFeedback = () => {
+    if (!selectedReflection || !feedbackText.trim()) return;
+    
+    // Save feedback to localStorage for demonstration
+    try {
+      const feedbackData = {
+        id: Date.now(),
+        reflectionId: selectedReflection.id,
+        studentName: selectedReflection.student,
+        feedbackText,
+        timestamp: new Date().toISOString(),
+        senderName: "Fasilitator"
+      };
+      
+      const existingFeedback = JSON.parse(localStorage.getItem("reflectionFeedback") || "[]");
+      existingFeedback.push(feedbackData);
+      localStorage.setItem("reflectionFeedback", JSON.stringify(existingFeedback));
+      
+      // Success notification
+      alert(`Feedback berhasil dikirim ke ${selectedReflection.student}`);
+    } catch (error) {
+      console.error("Error saving feedback:", error);
+    }
+    
+    setFeedbackDialogOpen(false);
+  };
+  
+  // Export reflections data
+  const handleExportData = () => {
+    try {
+      // Convert the data to a CSV format
+      let csvContent = "Student,Date,Time,Class,Emotion,Content\n";
+      
+      filteredReflections.forEach(reflection => {
+        csvContent += `"${reflection.student}","${reflection.date}","${reflection.time}","${reflection.className}","${reflection.emotion}","${reflection.content.replace(/"/g, '""')}"\n`;
+      });
+      
+      // Create a blob and download link
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `reflection_report_${new Date().toISOString().slice(0,10)}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      alert("Gagal mengekspor data. Silakan coba lagi.");
+    }
+  };
+  
   return (
     <main className="p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -98,8 +169,7 @@ export default function FacilitatorReflectionsPage() {
           <Button variant="outline">
             <MessageSquare className="mr-2 h-4 w-4" />
             Berikan Feedback
-          </Button>
-          <Button>
+          </Button>          <Button onClick={handleExportData}>
             <Download className="mr-2 h-4 w-4" />
             Export Data
           </Button>
@@ -107,13 +177,12 @@ export default function FacilitatorReflectionsPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">      <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Refleksi</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{reflections.length}</div>
+            <div className="text-2xl font-bold">{filteredReflections.length}</div>
             <p className="text-xs text-muted-foreground">Minggu ini</p>
           </CardContent>
         </Card>
@@ -124,7 +193,7 @@ export default function FacilitatorReflectionsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-500">
-              {reflections.filter((r) => r.needsAttention).length}
+              {needsAttentionCount}
             </div>
             <p className="text-xs text-muted-foreground">Emosi negatif</p>
           </CardContent>
@@ -136,7 +205,7 @@ export default function FacilitatorReflectionsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">
-              {reflections.filter((r) => r.emotion === "joy").length}
+              {positiveEmotionCount}
             </div>
             <p className="text-xs text-muted-foreground">Siswa senang</p>
           </CardContent>
@@ -225,9 +294,8 @@ export default function FacilitatorReflectionsPage() {
                         <Clock className="h-3 w-3 mr-1" />
                         {reflection.time}
                       </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
+                    </div>                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleOpenFeedback(reflection)}>
                         <MessageSquare className="h-4 w-4" />
                       </Button>
                       <Button size="sm" variant="outline">
@@ -242,9 +310,61 @@ export default function FacilitatorReflectionsPage() {
                 </div>
               </div>
             ))}
-          </div>
-        </CardContent>
+          </div>        </CardContent>
       </Card>
+      
+      {/* Feedback Dialog */}
+      <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Feedback untuk Refleksi Siswa</DialogTitle>
+            <DialogDescription>
+              Berikan tanggapan atau masukan terhadap refleksi siswa.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedReflection && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Siswa</h4>
+                <p className="text-sm">{selectedReflection.student}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Refleksi</h4>
+                <p className="text-sm bg-muted/30 p-3 rounded">{selectedReflection.content}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Emosi</h4>
+                <div className="flex items-center gap-2">
+                  <EmotionIndicator emotion={selectedReflection.emotion} size="sm" />
+                  <span className="text-sm capitalize">{selectedReflection.emotion}</span>
+                </div>
+              </div>
+              
+              <Textarea
+                placeholder="Tulis feedback Anda di sini..."
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                className="min-h-[120px]"
+              />
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFeedbackDialogOpen(false)}>
+              Batalkan
+            </Button>
+            <Button 
+              onClick={handleSendFeedback} 
+              disabled={!feedbackText?.trim()}
+            >
+              Kirim Feedback
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
