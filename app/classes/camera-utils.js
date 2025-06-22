@@ -10,12 +10,18 @@ export const getUserVideoStream = async (setCurrentEmotion) => {
       return null;
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    let videoDevices = [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    if (videoDevices.length === 0) {
-      console.warn("Tidak ada kamera yang terdeteksi");
-      return null;
+      if (videoDevices.length === 0) {
+        console.warn("Tidak ada kamera yang terdeteksi");
+        // Continue anyway to try getUserMedia without deviceId
+      }
+    } catch (enumError) {
+      console.error("Gagal mendapatkan daftar perangkat:", enumError);
+      // Continue anyway to try getUserMedia without device info
     }
 
     const constraintList = [
@@ -159,15 +165,28 @@ export const getWebcamErrorMessage = (error) => {
  */
 export const testCameraAccess = async () => {
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    // Check if mediaDevices API is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return { success: false, message: "API MediaDevices tidak tersedia di browser ini", devices: [] };
+    }
+    
+    let videoDevices = [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-    if (videoDevices.length === 0) {
-      return { success: false, message: "Tidak ada kamera yang terdeteksi", devices: [] };
+      if (videoDevices.length === 0) {
+        return { success: false, message: "Tidak ada kamera yang terdeteksi", devices: [] };
+      }
+    } catch (enumError) {
+      console.error("Gagal mendapatkan daftar perangkat:", enumError);
+      return { success: false, message: "Gagal mengakses daftar perangkat kamera", error: enumError };
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: videoDevices[0].deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+      video: videoDevices.length > 0 
+        ? { deviceId: { exact: videoDevices[0].deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+        : true
     });
 
     const track = stream.getVideoTracks()[0];

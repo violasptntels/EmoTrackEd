@@ -408,16 +408,29 @@ const startWebcam = async (retry = 0) => {
   }
 
   setIsLoading(true);
-
   try {
-    // Tambahan: Periksa perangkat yang tersedia
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    console.log("Device kamera yang tersedia:", videoDevices);
+    // Tambahan: Periksa apakah API mediaDevices tersedia
+    if (!navigator.mediaDevices) {
+      console.error("MediaDevices API tidak tersedia di browser ini");
+      setErrorMessage("Browser Anda tidak mendukung akses kamera. Silakan gunakan mode simulasi atau browser modern lainnya.");
+      setIsLoading(false);
+      return;
+    }
+    
+    // Periksa perangkat yang tersedia
+    let videoDevices = [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log("Device kamera yang tersedia:", videoDevices);
 
-    // Jika tidak ada kamera, berikan error khusus
-    if (videoDevices.length === 0) {
-      console.warn("Tidak ada perangkat kamera yang ditemukan");
+      // Jika tidak ada kamera, berikan error khusus
+      if (videoDevices.length === 0) {
+        console.warn("Tidak ada perangkat kamera yang ditemukan");
+      }
+    } catch (enumError) {
+      console.error("Gagal mendapatkan daftar perangkat kamera:", enumError);
+      // Lanjut mencoba getUserMedia tanpa device info
     }
 
     // Check if we're using simulation mode (from localStorage or by URL parameter)
