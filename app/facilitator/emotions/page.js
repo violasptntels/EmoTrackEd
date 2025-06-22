@@ -18,6 +18,9 @@ import {
 } from "lucide-react"
 
 export default function FacilitatorEmotionsPage() {
+  // Page title for monitoring student emotions, not personal emotions
+  document.title = "[FASILITATOR] Monitoring Emosi Siswa";
+  
   const [selectedClass, setSelectedClass] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
   const [studentsEmotions, setStudentsEmotions] = useState([]);
@@ -27,6 +30,7 @@ export default function FacilitatorEmotionsPage() {
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [currentView, setCurrentView] = useState("monitoring"); // "monitoring" atau "detail"
   
   // Sample data for emotion distributions
   const [currentEmotionDistribution, setCurrentEmotionDistribution] = useState([
@@ -44,31 +48,33 @@ export default function FacilitatorEmotionsPage() {
     { time: "09:30", senang: 35, sedih: 30, marah: 20, takut: 20, netral: 25 },
     { time: "09:45", senang: 50, sedih: 20, marah: 15, takut: 10, netral: 35 }
   ]);
-  
-  // Load saved emotion data from localStorage
+    // Load saved emotion data from localStorage
   useEffect(() => {
     try {
-      // Get emotion reports from localStorage
+      // Get emotion reports from localStorage - laporan emosi SISWA
       const savedEmotionReports = localStorage.getItem("emotionReports");
       if (savedEmotionReports) {
         const parsedReports = JSON.parse(savedEmotionReports);
         
+        console.log("Loaded student emotion reports:", parsedReports);
+        
         // Transform the emotion reports into the format needed for studentsEmotions
         const transformedReports = parsedReports.map((report, index) => ({
           id: index + 1,
-          name: report.studentName || "Student",
+          name: report.student || report.studentName || "Student", // Ambil nama siswa
           currentEmotion: report.dominantEmotion || "neutral",
           confidence: Math.floor(Math.random() * 30) + 70, // Simulated confidence 70-99%
-          lastUpdate: "Sesi terakhir",
+          lastUpdate: report.date || "Sesi terakhir",
           status: "completed",
           class: report.className || "Kelas Virtual",
           needsAttention: ["anger", "sadness", "fear", "disgust"].includes(report.dominantEmotion),
-          emotionHistory: report.emotionData?.map((item, i) => ({
-            time: `${i*15}:00`,
-            emotion: item || "neutral"
+          emotionHistory: report.emotions?.map((item, i) => ({
+            time: item.time || `${i*15}:00`,
+            emotion: item.emotion || "neutral"
           })) || [{ time: "00:00", emotion: "neutral" }],
           date: report.date,
-          classId: report.classId
+          classId: report.sessionId || report.classId,
+          fullData: report // Simpan data lengkap untuk tampilan detail
         }));
         
         if (transformedReports.length > 0) {
@@ -323,14 +329,22 @@ export default function FacilitatorEmotionsPage() {
   };
 
   return (
-    <main className="p-4 md:p-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Monitor Emosi Siswa Real-time</h1>
-          <p className="text-muted-foreground">
-            Pantau kondisi emosional siswa selama pembelajaran berlangsung untuk penyesuaian pendekatan
-          </p>
-        </div>
+    <main className="p-4 md:p-6">      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">[FASILITATOR] Monitoring Emosi Siswa</h1>
+            <p className="text-muted-foreground">
+              Pantau kondisi emosional siswa selama pembelajaran berlangsung untuk penyesuaian pendekatan
+            </p>
+            <div className="flex gap-2 mt-2">
+              <Badge variant="outline">
+                <Users className="h-4 w-4 mr-1" />
+                Laporan emosi dari {studentsEmotions.length} siswa
+              </Badge>
+              <Badge variant="secondary">
+                <Calendar className="h-4 w-4 mr-1" />
+                Data dari sesi kelas virtual
+              </Badge>
+            </div>
+          </div>
         <div className="flex items-center gap-2 mt-4 md:mt-0">
           <Button variant="outline" onClick={handleExportData}>
             <Download className="h-4 w-4 mr-2" />
@@ -455,26 +469,32 @@ export default function FacilitatorEmotionsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Real-time Emotion Chart */}
-        <Card className="lg:col-span-2">
+        {/* Real-time Emotion Chart */}        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Tren Emosi Real-time</CardTitle>
-            <CardDescription>Perkembangan emosi kelas dalam 1 jam terakhir</CardDescription>
+            <CardTitle>Tren Emosi Siswa</CardTitle>
+            <CardDescription>
+              Perkembangan emosi siswa selama mengikuti kelas virtual (data agregat dari semua siswa aktif)
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <LineChart data={classEmotionData} />
+            <div className="text-xs text-muted-foreground mt-2 italic">
+              *Grafik menunjukkan persentase siswa dengan masing-masing emosi selama kelas berlangsung
+            </div>
           </CardContent>
         </Card>
 
-        {/* Current Emotion Distribution */}
-        <Card>
+        {/* Current Emotion Distribution */}        <Card>
           <CardHeader>
-            <CardTitle>Distribusi Emosi Saat Ini</CardTitle>
-            <CardDescription>Persentase emosi siswa aktif</CardDescription>
+            <CardTitle>Distribusi Emosi Siswa</CardTitle>
+            <CardDescription>Keadaan emosional siswa setelah mengikuti kelas virtual</CardDescription>
           </CardHeader>
           <CardContent>
             <DonutChart data={currentEmotionDistribution} />
-            <div className="mt-4 space-y-2">
+            <div className="text-xs text-muted-foreground my-2 italic text-center">
+              *Persentase siswa berdasarkan emosi dominan yang terekam
+            </div>
+            <div className="mt-2 space-y-2">
               {currentEmotionDistribution.map((item, index) => (
                 <div key={index} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
@@ -489,11 +509,12 @@ export default function FacilitatorEmotionsPage() {
         </Card>
       </div>
 
-      {/* Students List */}
-      <Card>
+      {/* Students List */}      <Card>
         <CardHeader>
           <CardTitle>Daftar Siswa & Status Emosi ({filteredStudents.length})</CardTitle>
-          <CardDescription>Monitor individual siswa dan berikan dukungan yang tepat sasaran</CardDescription>
+          <CardDescription>
+            Monitor laporan emosi individual siswa dari kelas virtual dan berikan dukungan yang tepat sasaran
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -571,11 +592,10 @@ export default function FacilitatorEmotionsPage() {
       
       {/* Feedback Dialog */}
       <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md">          <DialogHeader>
             <DialogTitle>Kirim Feedback ke Siswa</DialogTitle>
             <DialogDescription>
-              Berikan masukan atau dukungan kepada siswa berdasarkan emosi mereka.
+              Berikan masukan atau dukungan kepada siswa berdasarkan laporan emosi dari kelas virtual.
             </DialogDescription>
           </DialogHeader>
           
@@ -588,9 +608,12 @@ export default function FacilitatorEmotionsPage() {
                 <div>
                   <p className="font-medium">{selectedStudent.name}</p>
                   <div className="flex items-center gap-1 text-sm">
-                    <span>Emosi saat ini:</span>
+                    <span>Emosi dominan dari kelas:</span>
                     <EmotionIndicator emotion={selectedStudent.currentEmotion} size="xs" />
                     <span className="capitalize">{selectedStudent.currentEmotion}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Kelas: {selectedStudent.class} - {selectedStudent.date || "Terbaru"}
                   </div>
                 </div>
               </div>

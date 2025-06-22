@@ -40,9 +40,15 @@ import {
 } from "lucide-react"
 
 export function RoleDashboard({ role, user }) {
-  if (role === "fasilitator") {
+  console.log("RoleDashboard - Role passed:", role);
+  
+  // More comprehensive check for facilitator role
+  if (role === "fasilitator" || role === "facilitator" || 
+      (typeof role === "string" && role.toLowerCase().includes("fasil"))) {
+    console.log("Showing Facilitator Dashboard");
     return <FasilitatorDashboard user={user} />
   } else {
+    console.log("Showing Student Dashboard");
     return <SiswaDashboard user={user} />
   }
 }

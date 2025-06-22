@@ -17,9 +17,10 @@ export default function DashboardPage() {
       setUser(parsedUser)
     }
   }, [])
-
   // Konversi role untuk komponen
-  const roleType = user.role.toLowerCase()
+  const roleType = user.role ? user.role.toLowerCase() : "siswa"
+  
+  console.log("Dashboard - User Role:", user.role, "Role Type:", roleType);
 
   return <RoleDashboard role={roleType} user={user} />
 }

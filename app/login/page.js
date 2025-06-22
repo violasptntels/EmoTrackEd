@@ -23,12 +23,10 @@ export default function LoginPage() {
     if (!username || !password || !role) {
       setError("Semua field harus diisi")
       return
-    }
-
-    // Simpan data user ke localStorage
+    }    // Simpan data user ke localStorage
     const userData = {
       name: username,
-      role: role === "fasilitator" ? "Fasilitator" : "Siswa",
+      role: role,  // Store the exact role value
       loginTime: new Date().toISOString(),
     }
 

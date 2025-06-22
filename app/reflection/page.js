@@ -11,6 +11,9 @@ import { EmotionIndicator } from "@/components/emotion-indicator"
 import { Send, Calendar, Clock, CheckCircle, Download, FileText } from "lucide-react"
 
 export default function ReflectionPage() {
+  // Page title for student personal reflection
+  document.title = "[SISWA] Buat Refleksi Baru";
+  
   const [reflection, setReflection] = useState("")
   const [classId, setClassId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -372,7 +375,7 @@ export default function ReflectionPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Buat Refleksi Baru</CardTitle>
+            <CardTitle>[SISWA] Buat Refleksi Baru</CardTitle>
             <CardDescription>Tuliskan refleksi emosi Anda setelah mengikuti kelas virtual</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
@@ -508,7 +511,7 @@ export default function ReflectionPage() {
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Riwayat Refleksi ({reflections.length})</CardTitle>
+          <CardTitle>[SISWA] Riwayat Refleksi Pribadi ({reflections.length})</CardTitle>
           <CardDescription>Refleksi pembelajaran yang telah Anda buat (terbaru di atas)</CardDescription>
         </CardHeader>
         <CardContent>

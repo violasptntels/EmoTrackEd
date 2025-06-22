@@ -31,7 +31,6 @@ export function Sidebar({ user: propUser }) {
   const pathname = usePathname()
   const [user, setUser] = useState(propUser || { name: "Guest", role: "Siswa" })
   const [routes, setRoutes] = useState([])
-
   useEffect(() => {
     // Update user from props or localStorage
     if (propUser) {
@@ -42,8 +41,11 @@ export function Sidebar({ user: propUser }) {
         const parsedUser = JSON.parse(userData)
         setUser(parsedUser)
       }
-    }    // Route configuration based on user role
-    const roleRoutes = {      fasilitator: [
+    }
+    
+    // Route configuration based on user role
+    const roleRoutes = {      
+      fasilitator: [
         {
           title: "Akun",
           routes: [
@@ -73,18 +75,17 @@ export function Sidebar({ user: propUser }) {
               href: "/facilitator/students",
             },
           ],
-        },
-        {
+        },        {
           title: "Analisis",
           routes: [
             {
               icon: BarChart3,
-              label: "Data Emosi",
+              label: "Monitoring Emosi",
               href: "/facilitator/emotions",
             },
             {
               icon: FileText,
-              label: "Refleksi Siswa",
+              label: "Monitoring Refleksi",
               href: "/facilitator/reflections",
             },
             {
@@ -94,7 +95,8 @@ export function Sidebar({ user: propUser }) {
             },
           ],
         },
-      ],siswa: [
+      ],
+      siswa: [
         {
           title: "Akun",
           routes: [
@@ -130,14 +132,16 @@ export function Sidebar({ user: propUser }) {
           ],
         },
       ],
-    }
-
-    // Set routes based on user role (lowercase)
-    const role = user.role.toLowerCase()
-    if (["fasilitator", "siswa"].includes(role)) {
-      setRoutes(roleRoutes[role])
+    }    // Set routes based on user role (lowercase)
+    const role = user.role ? user.role.toLowerCase() : "siswa";
+    console.log("Sidebar - User role:", role);
+    
+    if (role === "fasilitator" || role === "facilitator" || role.includes("fasil")) {
+      console.log("Setting facilitator routes");
+      setRoutes(roleRoutes.fasilitator);
     } else {
-      setRoutes(roleRoutes.siswa) // Default to siswa routes
+      console.log("Setting student routes");
+      setRoutes(roleRoutes.siswa); // Default to siswa routes
     }
   }, [propUser])
 

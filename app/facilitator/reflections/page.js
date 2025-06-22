@@ -13,6 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea"
 
 export default function FacilitatorReflectionsPage() {
+  // Page title for monitoring student reflections, not personal reflections
+  document.title = "[FASILITATOR] Monitoring Refleksi Siswa";
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [emotionFilter, setEmotionFilter] = useState("all");
   const [savedReflections, setSavedReflections] = useState([]);
@@ -159,11 +162,19 @@ export default function FacilitatorReflectionsPage() {
   };
   
   return (
-    <main className="p-4 md:p-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Data Refleksi Siswa</h1>
+    <main className="p-4 md:p-6">      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>            <h1 className="text-2xl md:text-3xl font-bold">[FASILITATOR] Monitoring Refleksi Siswa</h1>
           <p className="text-muted-foreground">Monitor refleksi emosi dari siswa dalam kelas Anda</p>
+          <div className="flex gap-2 mt-2">
+            <Badge variant="outline">
+              <Users className="h-4 w-4 mr-1" />
+              {combinedReflections.length} refleksi siswa tersedia
+            </Badge>
+            <Badge variant="secondary">
+              <Calendar className="h-4 w-4 mr-1" />
+              Refleksi pasca kelas virtual
+            </Badge>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -258,11 +269,10 @@ export default function FacilitatorReflectionsPage() {
         </CardContent>
       </Card>
 
-      {/* Reflections List */}
-      <Card>
+      {/* Reflections List */}      <Card>
         <CardHeader>
-          <CardTitle>Daftar Refleksi ({filteredReflections.length})</CardTitle>
-          <CardDescription>Refleksi emosi dari siswa dalam kelas Anda</CardDescription>
+          <CardTitle>Daftar Refleksi Siswa ({filteredReflections.length})</CardTitle>
+          <CardDescription>Refleksi yang diisi oleh siswa setelah mengikuti kelas virtual</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

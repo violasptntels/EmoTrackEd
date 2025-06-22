@@ -10,6 +10,9 @@ import { CalendarIcon, LineChart as LineChartIcon, BarChart as BarChartIcon, Dow
 import { EmotionIndicator } from "@/components/emotion-indicator"
 
 export default function EmotionReportPage() {
+  // Page title for student personal emotion report
+  document.title = "[SISWA] Laporan Emosi Pribadi";
+  
   const reportRef = useRef(null);
   const [emotionReports, setEmotionReports] = useState([]);
   const [user, setUser] = useState({ name: "Guest", role: "Siswa" });
@@ -220,9 +223,8 @@ export default function EmotionReportPage() {
       `}</style>
 
       <div className="container mx-auto py-6">
-        <div className="flex flex-col space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">Laporan Emosi</h1>
+        <div className="flex flex-col space-y-6">          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">[SISWA] Laporan Emosi Pribadi</h1>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="flex items-center">
                 <CalendarIcon className="mr-1 h-3 w-3" />
