@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -11,59 +11,78 @@ import { Search, Calendar, Clock, Filter, Download, Eye, MessageSquare } from "l
 import { Button } from "@/components/ui/button"
 
 export default function FacilitatorReflectionsPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [emotionFilter, setEmotionFilter] = useState("all")
-
-  // Data refleksi hanya dari siswa yang dikelola fasilitator ini
-  const reflections = [
-    {
-      id: 1,
-      studentName: "Alice Johnson",
-      studentEmail: "alice@student.com",
-      date: "12 Jun 2025",
-      time: "09:30",
-      content:
-        "Hari ini saya merasa sangat senang karena berhasil menyelesaikan tugas matematika dengan baik. Saya belajar dengan tekun dan hasilnya memuaskan.",
-      emotion: "joy",
-      subject: "Matematika",
-      summary: "Perasaan senang dan percaya diri setelah berhasil menyelesaikan tugas matematika dengan baik.",
-      needsAttention: false,
-    },
-    {
-      id: 2,
-      studentName: "Bob Smith",
-      studentEmail: "bob@student.com",
-      date: "12 Jun 2025",
-      time: "14:15",
-      content:
-        "Saya sedikit kecewa dengan nilai ujian bahasa inggris, tapi saya akan belajar lebih giat. Saya perlu meningkatkan kemampuan grammar dan vocabulary saya.",
-      emotion: "sadness",
-      subject: "Bahasa Inggris",
-      summary: "Kekecewaan dengan nilai ujian bahasa inggris, namun ada tekad untuk belajar lebih giat.",
-      needsAttention: true,
-    },
+  const [searchTerm, setSearchTerm] = useState("");
+  const [emotionFilter, setEmotionFilter] = useState("all");
+  const [savedReflections, setSavedReflections] = useState([]);
+    // Load reflections from localStorage
+  useEffect(() => {
+    try {
+      const storedReflections = localStorage.getItem("reflections");
+      if (storedReflections) {
+        const parsedReflections = JSON.parse(storedReflections);
+        setSavedReflections(parsedReflections);
+      }
+    } catch (error) {
+      console.error("Error loading reflections:", error);
+    }
+  }, []);
+  
+  // Combine saved reflections with static data
+  const combinedReflections = [
+    ...savedReflections,
+    // Static data as fallback if no saved reflections
+    ...(savedReflections.length === 0 ? [
+      {
+        id: 1,
+        student: "Alice Johnson",
+        date: "12 Jun 2025",
+        time: "09:30",
+        content:
+          "Hari ini saya merasa sangat senang karena berhasil menyelesaikan tugas matematika dengan baik. Saya belajar dengan tekun dan hasilnya memuaskan.",
+        emotion: "joy",
+        className: "Matematika",
+        summary: "Perasaan senang dan percaya diri setelah berhasil menyelesaikan tugas matematika dengan baik.",
+        needsAttention: false,
+        instructor: "Dr. Sarah Johnson"
+      },
+      {
+        id: 2,
+        student: "Bob Smith",
+        date: "12 Jun 2025",
+        time: "14:15",
+        content:
+          "Saya sedikit kecewa dengan nilai ujian bahasa inggris, tapi saya akan belajar lebih giat. Saya perlu meningkatkan kemampuan grammar dan vocabulary saya.",
+        emotion: "sadness",
+        className: "Bahasa Inggris",
+        summary: "Kekecewaan dengan nilai ujian bahasa inggris, namun ada tekad untuk belajar lebih giat.",
+        needsAttention: true,
+        instructor: "Dr. Sarah Johnson"
+      },    ] : []),
     {
       id: 3,
-      studentName: "Carol Davis",
-      studentEmail: "carol@student.com",
+      student: "Carol Davis",
       date: "11 Jun 2025",
       time: "16:45",
       content:
         "Diskusi kelompok berjalan lancar, semua anggota berkontribusi dengan baik. Kami berhasil menyelesaikan presentasi tepat waktu.",
       emotion: "neutral",
-      subject: "Ilmu Sosial",
+      className: "Ilmu Sosial",
       summary: "Kepuasan dengan kerja sama tim dalam diskusi kelompok yang berjalan lancar.",
       needsAttention: false,
+      instructor: "Dr. Sarah Johnson"
     },
-  ]
+  ];
 
-  const filteredReflections = reflections.filter((reflection) => {
+  const filteredReflections = combinedReflections.filter((reflection) => {
+    // Field names are now student, content, and className (formerly subject)
     const matchesSearch =
-      reflection.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reflection.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reflection.subject.toLowerCase().includes(searchTerm.toLowerCase())
+      (reflection.student || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reflection.content || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reflection.className || "").toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesEmotion = emotionFilter === "all" || reflection.emotion === emotionFilter
+    const matchesEmotion = emotionFilter === "all" || reflection.emotion === emotionFilter;
+    
+    return matchesSearch && matchesEmotion;
 
     return matchesSearch && matchesEmotion
   })
@@ -186,17 +205,17 @@ export default function FacilitatorReflectionsPage() {
                 <div className="flex items-start gap-3">
                   <Avatar>
                     <AvatarImage src="/placeholder.svg" />
-                    <AvatarFallback>{reflection.studentName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>{(reflection.student || "").substring(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <EmotionIndicator emotion={reflection.emotion} size="md" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{reflection.studentName}</p>
+                      <p className="font-medium">{reflection.student}</p>
                       {reflection.needsAttention && <Badge variant="destructive">Perlu Perhatian</Badge>}
                       <Badge variant="outline" className="text-xs">
-                        {reflection.subject}
+                        {reflection.className}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
                         <Calendar className="h-3 w-3 mr-1" />

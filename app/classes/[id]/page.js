@@ -9,6 +9,7 @@ import { EmotionIndicator } from "@/components/emotion-indicator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Video,
   Mic,
@@ -29,10 +30,14 @@ import {
   Angry,
   Meh,
 } from "lucide-react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+
+// Import camera utility functions
+import { createMockVideoStream, getUserVideoStream, stopMediaStream, cleanupVideoElement, getWebcamErrorMessage } from "../camera-utils"
 
 export default function ClassDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const [user, setUser] = useState({ name: "Guest", role: "Siswa" })
   const [isVideoOn, setIsVideoOn] = useState(false)
   const [isAudioOn, setIsAudioOn] = useState(false)
@@ -43,13 +48,14 @@ export default function ClassDetailPage() {
   const [isClassFinished, setIsClassFinished] = useState(false) // State baru untuk menandai kelas selesai
   const videoRef = useRef(null)
   const [classSessionFinished, setClassSessionFinished] = useState(false) // State baru untuk melacak status sesi kelas
-
-  // Additional states for Zoom-like meeting experience
-  const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [isRaisingHand, setIsRaisingHand] = useState(false)
+  // Additional states for meeting experience
   const [isMeetingRecording, setIsMeetingRecording] = useState(user?.role === "Fasilitator")
   const [meetingDuration, setMeetingDuration] = useState(0)
 
+  // State untuk melacak emosi selama sesi kelas
+  const [emotionData, setEmotionData] = useState([])
+  const [dominantEmotion, setDominantEmotion] = useState("neutral")
+  const [showReflectionPrompt, setShowReflectionPrompt] = useState(false)
   useEffect(() => {
     const userData = localStorage.getItem("userData")
     if (userData) {
@@ -64,14 +70,20 @@ export default function ClassDetailPage() {
         const emotions = ["joy", "neutral", "sadness", "surprise", "fear"]
         const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)]
         setCurrentEmotion(randomEmotion)
+        
+        // Simpan data emosi setiap kali terdeteksi
+        saveEmotionData(randomEmotion)
+        
+        // Update emosi dominan
+        const dominant = calculateDominantEmotion()
+        setDominantEmotion(dominant)
       }, 3000)
     }
 
     return () => {
       if (emotionInterval) clearInterval(emotionInterval)
     }
-  }, [isVideoOn])
-  // Simulasi sesi privat selesai setelah beberapa waktu (hanya untuk demo)
+  }, [isVideoOn, emotionData])  // Simulasi sesi privat selesai setelah beberapa waktu (hanya untuk demo)
   useEffect(() => {
     if (user.role === "Siswa") {
       // Simulasi sesi selesai setelah 60 detik (untuk demonstrasi)
@@ -81,6 +93,11 @@ export default function ClassDetailPage() {
           stopWebcam()
         }
         setError("Sesi bimbingan privat telah selesai. Fasilitator telah mengakhiri sesi.")
+        
+        // Tampilkan prompt refleksi setelah sesi berakhir
+        setTimeout(() => {
+          setShowReflectionPrompt(true)
+        }, 1500)
       }, 60000) // 60 detik untuk demonstrasi
 
       return () => clearTimeout(classEndTimer)
@@ -97,12 +114,90 @@ export default function ClassDetailPage() {
   }, [])
 
   // Format meeting duration as HH:MM:SS
-const formatMeetingDuration = (seconds) => {
+  const formatMeetingDuration = (seconds) => {
     const hrs = Math.floor(seconds / 3600)
     const mins = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
     return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
+
+  // Fungsi untuk menyimpan data emosi ke localStorage
+  const saveEmotionData = (emotion) => {
+    const now = new Date()
+    const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    
+    // Update emotion data array
+    const newEmotionData = [
+      ...emotionData,
+      { time: timeString, emotion, timestamp: now.getTime() }
+    ]
+    
+    setEmotionData(newEmotionData)
+    
+    // Simpan ke localStorage
+    try {
+      // Ambil data emosi yang sudah ada
+      const existingDataString = localStorage.getItem('emotionDataHistory') || '[]'
+      let existingData = JSON.parse(existingDataString)
+      
+      // Format data untuk disimpan
+      const sessionData = {
+        sessionId: params.id,
+        className: classData.title,
+        date: now.toLocaleDateString('id-ID'),
+        emotions: newEmotionData,
+        duration: meetingDuration,
+        withFacilitator: classData.instructor
+      }
+      
+      // Cek apakah sudah ada data untuk sesi ini
+      const existingSessionIndex = existingData.findIndex(item => item.sessionId === params.id)
+      
+      if (existingSessionIndex >= 0) {
+        // Update data sesi yang sudah ada
+        existingData[existingSessionIndex] = sessionData
+      } else {
+        // Tambah data sesi baru
+        existingData.push(sessionData)
+      }
+      
+      // Batasi hanya menyimpan 10 sesi terakhir
+      if (existingData.length > 10) {
+        existingData = existingData.slice(-10)
+      }
+      
+      // Simpan kembali ke localStorage
+      localStorage.setItem('emotionDataHistory', JSON.stringify(existingData))
+      
+    } catch (error) {
+      console.error("Error saving emotion data:", error)
+    }
+  }
+  
+  // Fungsi untuk menghitung emosi dominan
+  const calculateDominantEmotion = () => {
+    if (emotionData.length === 0) return "neutral"
+    
+    // Hitung frekuensi masing-masing emosi
+    const emotionCounts = emotionData.reduce((counts, item) => {
+      counts[item.emotion] = (counts[item.emotion] || 0) + 1
+      return counts
+    }, {})
+    
+    // Cari emosi dengan frekuensi tertinggi
+    let maxCount = 0
+    let dominantEmotion = "neutral"
+    
+    Object.entries(emotionCounts).forEach(([emotion, count]) => {
+      if (count > maxCount) {
+        maxCount = count
+        dominantEmotion = emotion
+      }
+    })
+    
+    return dominantEmotion
+  }
+
   // Data sesi kelas privat (simulasi)
   const classData = {
     id: params.id,
@@ -175,193 +270,320 @@ const formatMeetingDuration = (seconds) => {
     if (lowerText.includes("sedih") || lowerText.includes("susah")) return "sadness"
     if (lowerText.includes("bingung") || lowerText.includes("sulit")) return "fear"
     return "neutral"
-  }
+  }  // Import functions from camera-utils.js
+  const getMockVideoStream = () => createMockVideoStream(setCurrentEmotion);
+  
+  // Function to start webcam
   const startWebcam = async () => {
-    setIsLoading(true)
-    setError("")
+    setIsLoading(true);
+    setError("");
     
-    // Pastikan tidak ada stream aktif sebelum meminta stream baru
+    // Clear any existing stream
     if (stream) {
       stopWebcam();
     }
     
     try {
-      // Cek permission kamera dan mikrofon
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError("Browser tidak mendukung akses kamera/mikrofon.")
-        setIsLoading(false)
-        return
+      // Check if we're using simulation mode (from localStorage or by URL parameter)
+      const useMockCamera = localStorage.getItem('useMockCamera') === 'true';
+      
+      let mediaStream;
+      
+      // If not simulation mode, try to get real camera
+      if (!useMockCamera) {
+        try {
+          // Use our new function to get a user video stream (real webcam)
+          mediaStream = await getUserVideoStream(setCurrentEmotion);
+          
+          if (!mediaStream) {
+            console.warn("Could not get user video stream, falling back to mock");
+            // Fall back to mock stream
+            mediaStream = getMockVideoStream();
+          }
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          // Fall back to mock stream
+          mediaStream = getMockVideoStream();
+        }
+      } else {
+        // Use mock camera if explicitly requested
+        console.log("Using mock camera for simulation mode");
+        mediaStream = getMockVideoStream();
       }
       
-      // Coba dapatkan daftar perangkat kamera dan mikrofon
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      const audioDevices = devices.filter(device => device.kind === 'audioinput');
-      
-      if (videoDevices.length === 0) {
-        setError("Tidak ada kamera yang terdeteksi.")
-        setIsLoading(false)
-        return
-      }
-      
-      // Notifikasi jika tidak ada mikrofon terdeteksi tapi tetap lanjut dengan video saja
-      if (audioDevices.length === 0) {
-        console.warn("Tidak ada mikrofon yang terdeteksi, melanjutkan dengan video saja.")
-      }
-      
-      // Dapatkan akses ke webcam dan mikrofon dengan opsi kualitas yang lebih baik
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user"
-        },
-        audio: true
-      })
-      
-      // Set stream ke state dan video element
-      setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
-      
-      // Aktifkan mikrofon dan video
-      mediaStream.getAudioTracks().forEach(track => {
-        track.enabled = true
-      })
-      
-      // Update state
-      setIsVideoOn(true)
-      setIsAudioOn(true)
-      setIsLoading(false)
-      
-      // Tampilkan pesan sukses
-      console.log(`Kamera dan mikrofon aktif: ${videoDevices.length} kamera, ${audioDevices.length} mikrofon`)
-    } catch (err) {
-      console.error("Error accessing media devices:", err)
-      
-      // Coba lagi dengan video saja jika kombinasi gagal
-      try {
-        const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        })
+      // Set the stream to state and video element
+      if (mediaStream) {
+        setStream(mediaStream);
         
-        setStream(videoOnlyStream)
         if (videoRef.current) {
-          videoRef.current.srcObject = videoOnlyStream
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play()
+              .then(() => console.log("Video playing successfully"))
+              .catch(err => console.warn("Error playing video:", err));
+          };
+          
+          // Make sure muted is false to hear audio (if needed)
+          videoRef.current.muted = true; // Keep muted to avoid feedback, change if needed
         }
         
-        setIsVideoOn(true)
-        setIsAudioOn(false)
-        setIsLoading(false)
-        setError("Mikrofon tidak dapat diakses. Hanya kamera yang aktif.")
-      } catch (videoErr) {
-        console.error("Error accessing webcam:", videoErr)
-        setError("Gagal mengakses kamera dan mikrofon. Periksa izin browser Anda.")
-        setIsLoading(false)
+        // Update state to reflect video is active
+        setIsVideoOn(true);
+        
+        // Check if audio tracks exist
+        setIsAudioOn(mediaStream.getAudioTracks().length > 0);
+        
+        console.log("Camera activated successfully");
+      } else {
+        throw new Error("Tidak dapat mengakses kamera dan simulasi gagal.");
+      }
+      
+      // If we got a real media stream
+      setStream(mediaStream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(err => console.error("Error playing video:", err));
+        };
+      }
+      
+      setIsVideoOn(true);
+      setIsAudioOn(mediaStream.getAudioTracks().length > 0);
+      setIsLoading(false);
+      
+    } catch (err) {      console.error("Fatal error in startWebcam:", err);
+      
+      // As a last resort, try mock camera without showing an error
+      const mockStream = getMockVideoStream();
+      
+      if (mockStream) {
+        setStream(mockStream);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = mockStream;
+        }
+        
+        setIsVideoOn(true);
+        setIsAudioOn(true);
+        setIsLoading(false);
+        setError("Mode simulasi diaktifkan karena kamera tidak dapat diakses.");
+      } else {
+        setError(
+          "Tidak dapat mengakses kamera. Silakan periksa izin dan pastikan tidak ada aplikasi lain yang menggunakan kamera."
+        );
+        setIsLoading(false);
       }
     }
   }
     const stopWebcam = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
+    try {
+      if (stream) {
+        // Use the imported utility function to stop the stream
+        stopMediaStream(stream);
+        setStream(null);
+      }
       
+      // Clean up video element using the imported utility function
       if (videoRef.current) {
-        videoRef.current.srcObject = null
+        cleanupVideoElement(videoRef.current);
       }
+    } catch (err) {
+      console.error("Error in stopWebcam:", err);
+    } finally {
+      // Always update the UI state
+      setIsVideoOn(false);
+      setIsAudioOn(false);
     }
-    
-    setIsVideoOn(false)
-    setIsAudioOn(false)
   }
+  
   const toggleAudio = async () => {
-    // Jika tidak ada stream atau tidak ada audio tracks, coba dapatkan audio
-    if (!stream || stream.getAudioTracks().length === 0) {
-      try {
-        // Coba dapatkan akses ke mikrofon
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: true
-        })
-        
-        // Tambahkan track audio ke stream yang ada
-        if (stream) {
-          audioStream.getAudioTracks().forEach(track => {
-            stream.addTrack(track)
-          })
-        } else {
-          // Jika tidak ada stream sama sekali, gunakan audioStream
-          setStream(audioStream)
+    try {
+      // Jika tidak ada stream atau tidak ada audio tracks, coba dapatkan audio
+      if (!stream || stream.getAudioTracks().length === 0) {
+        try {
+          // Coba dapatkan akses ke mikrofon dengan beberapa opsi fallback
+          let audioStream;
+          
+          try {
+            audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: { 
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }
+            });
+          } catch (err) {
+            console.warn("Could not access microphone with advanced settings, trying basic settings:", err);
+            audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: true
+            });
+          }
+          
+          // Tambahkan track audio ke stream yang ada
+          if (stream) {
+            try {
+              const audioTracks = audioStream.getAudioTracks();
+              audioTracks.forEach(track => {
+                try {
+                  stream.addTrack(track);
+                } catch (addTrackErr) {
+                  console.error("Error adding audio track:", addTrackErr);
+                  
+                  // Jika gagal menambah track, gunakan pendekatan alternatif
+                  if (videoRef.current) {
+                    const combinedStream = new MediaStream();
+                    stream.getTracks().forEach(track => combinedStream.addTrack(track));
+                    audioTracks.forEach(track => combinedStream.addTrack(track));
+                    
+                    videoRef.current.srcObject = combinedStream;
+                    setStream(combinedStream);
+                  }
+                }
+              });
+            } catch (trackErr) {
+              console.error("Error processing audio tracks:", trackErr);
+            }
+          } else {
+            // Jika tidak ada stream sama sekali, gunakan audioStream
+            setStream(audioStream);
+          }
+          
+          // Aktifkan audio
+          setIsAudioOn(true);
+          console.log("Mikrofon berhasil diaktifkan");
+        } catch (err) {
+          console.error("Error accessing microphone:", err);
+          setError("Gagal mengakses mikrofon. Periksa izin browser atau perangkat mikrofon Anda.");
+          return;
         }
+      } else {
+        // Toggle audio dari stream yang ada
+        const newAudioState = !isAudioOn;
+        setIsAudioOn(newAudioState);
         
-        // Aktifkan audio
-        setIsAudioOn(true)
-      } catch (err) {
-        console.error("Error accessing microphone:", err)
-        setError("Gagal mengakses mikrofon. Periksa izin browser Anda.")
-        return
+        try {
+          stream.getAudioTracks().forEach(track => {
+            track.enabled = newAudioState;
+          });
+          
+          // Tampilkan pesan status
+          console.log(`Mikrofon ${newAudioState ? 'aktif' : 'mati'}`);
+        } catch (trackErr) {
+          console.error("Error toggling audio tracks:", trackErr);
+          setError("Gagal mengubah status mikrofon");
+        }
       }
-    } else {
-      // Toggle audio dari stream yang ada
-      const newAudioState = !isAudioOn
-      setIsAudioOn(newAudioState)
-      
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = newAudioState
-      })
-      
-      // Tampilkan pesan status
-      console.log(`Mikrofon ${newAudioState ? 'aktif' : 'mati'}`)
+    } catch (e) {
+      console.error("Unexpected error in toggleAudio:", e);
+      setError("Terjadi kesalahan saat mengakses mikrofon");
     }
   }
-
-  const toggleScreenSharing = () => {
-    setIsScreenSharing(!isScreenSharing)
-    // Implentasi screen sharing aktual akan memerlukan API browser tambahan
-  }
-
-  const toggleRaiseHand = () => {
-    setIsRaisingHand(!isRaisingHand)
-  }
+  // Screen sharing dan raise hand feature telah dihapus
 
   const toggleMeetingRecording = () => {
     setIsMeetingRecording(!isMeetingRecording)
   }  // Handler untuk menyelesaikan sesi kelas privat
   const handleFinishSession = () => {
-    // Konfirmasi penyelesaian sesi kelas dengan pesan yang sesuai berdasarkan peran
-    const confirmMessage = user.role === "Fasilitator" 
-      ? "Apakah Anda yakin ingin mengakhiri sesi privat dengan siswa?"
-      : "Apakah Anda yakin ingin keluar dari sesi bimbingan privat ini?";
+    // Stop webcam if it's on
+    if (isVideoOn) {
+      stopWebcam();
+    }
+    
+    // Calculate session duration and dominant emotions
+    const sessionDuration = meetingDuration;
+    const dominantEmotionResult = calculateDominantEmotion();
+    
+    // Create a summary of the session
+    const sessionSummary = {
+      sessionId: params.id,
+      className: classData.title,
+      instructor: classData.instructor,
+      date: new Date().toLocaleDateString('id-ID'),
+      startTime: classData.startTime,
+      endTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      duration: formatMeetingDuration(sessionDuration),
+      emotions: emotionData,
+      dominantEmotion: dominantEmotionResult,
+      participants: participants.length
+    };
+    
+    // Save session data to localStorage for reports
+    try {
+      // Get existing emotion report data or initialize new array
+      const existingReportsStr = localStorage.getItem('emotionReports') || '[]';
+      const existingReports = JSON.parse(existingReportsStr);
       
-    if (window.confirm(confirmMessage)) {
-      // Hentikan peralatan media
-      stopWebcam()
+      // Add new session report
+      existingReports.push(sessionSummary);
       
-      // Update state
-      setClassSessionFinished(true)
-        // Pesan yang sesuai berdasarkan peran
-      if (user.role === "Fasilitator") {
-        setError("Sesi bimbingan privat telah diakhiri. Siswa akan dialihkan ke halaman refleksi.")
+      // Limit to last 50 reports
+      const limitedReports = existingReports.slice(-50);
+      
+      // Save back to localStorage
+      localStorage.setItem('emotionReports', JSON.stringify(limitedReports));
+      
+      console.log('Session emotion data saved successfully');
+    } catch (error) {
+      console.error('Error saving session emotion data:', error);
+    }
+    
+    // Mark session as finished
+    setClassSessionFinished(true);
+    
+    // Show reflection prompt for students
+    if (user.role === 'Siswa') {
+      setShowReflectionPrompt(true);
+    } else {
+      // For facilitator, show session summary
+      router.push('/facilitator/emotions');
+    }
+  };  // Function to handle reflection submission after class
+  const handleReflectionSubmit = async (reflectionText, classData, emotionValue = "neutral") => {
+    return new Promise((resolve, reject) => {
+      try {
+        // Create reflection data
+        const reflectionData = {
+          id: Date.now(),
+          sessionId: params.id,
+          className: classData.title,
+          date: new Date().toLocaleDateString('id-ID'),
+          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          content: reflectionText,
+          emotion: emotionValue, // Use provided emotion or default
+          student: user.name,
+          instructor: classData.instructor
+        };
         
-        // Simpan ke localStorage bahwa fasilitator telah mengakhiri sesi ini
-        localStorage.setItem(`sessionEnd_${params.id}`, new Date().toISOString())
+        // Get existing reflections or initialize new array
+        const existingReflectionsStr = localStorage.getItem('reflections') || '[]';
+        const existingReflections = JSON.parse(existingReflectionsStr);
         
-        // Redirect fasilitator setelah 3 detik ke daftar sesi
+        // Add new reflection
+        existingReflections.push(reflectionData);
+        
+        // Save back to localStorage
+        localStorage.setItem('reflections', JSON.stringify(existingReflections));
+        
+        console.log('Reflection saved successfully');
+        
+        // Add a small timeout to simulate async saving
         setTimeout(() => {
-          window.location.href = "/facilitator/sessions"
-        }, 3000)
-      } else {
-        setError("Anda telah keluar dari sesi bimbingan privat ini.")
-        
-        // Simpan ke localStorage bahwa siswa telah keluar dari sesi ini
-        localStorage.setItem(`sessionExit_${params.id}`, new Date().toISOString())
-        
-        // Redirect siswa ke halaman refleksi setelah 3 detik
-        setTimeout(() => {
-          window.location.href = "/reflection"
-        }, 3000)
+          // Redirect to reflection page to see all reflections
+          router.push('/reflection');
+          resolve(reflectionData);
+        }, 500);
+      } catch (error) {
+        console.error('Error saving reflection:', error);
+        reject(error);
       }
+    });
+  };
+  
+  // Fungsi untuk menampilkan prompt refleksi (untuk siswa)
+  const showReflection = () => {
+    if (user.role === "Siswa") {
+      setShowReflectionPrompt(true)
     }
   }
 
@@ -443,32 +665,39 @@ const formatMeetingDuration = (seconds) => {
                     <div className="loading-spinner mb-4"></div>
                     <p>Memuat kamera...</p>
                   </div>
-                ) : isVideoOn ? (
-                  <div className="relative w-full">
+                ) : isVideoOn ? (                  <div className="relative w-full">
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
                       muted
                       className="w-full h-[400px] object-cover"
+                      onError={(e) => {
+                        console.error("Video error:", e);
+                        setError("Terjadi kesalahan pada pemutaran video. Coba muat ulang halaman.");
+                        setIsVideoOn(false);
+                      }}
+                      onLoadedMetadata={(e) => {
+                        console.log("Video loaded successfully");
+                        // Ensure video plays when metadata is loaded
+                        e.target.play().catch(err => console.error("Error playing video:", err));
+                      }}
                     />
-                    
-                    {/* Overlay status untuk emosi terdeteksi */}
+                      {/* Overlay status untuk emosi terdeteksi */}
                     <div className="absolute top-4 right-4 flex items-center gap-2 bg-background/70 p-2 rounded-md">
                       <EmotionIndicator emotion={currentEmotion} size="sm" />
                       <span className="text-sm font-medium">Emosi terdeteksi: {currentEmotion}</span>
+                      {localStorage.getItem('useMockCamera') === 'true' && (
+                        <Badge variant="outline" className="ml-1 bg-yellow-100/30 text-yellow-900 border-yellow-300">
+                          Mode Simulasi
+                        </Badge>
+                      )}
                     </div>
                     
                     {/* Overlay untuk status perangkat */}
-                    <div className="absolute bottom-4 left-4 flex flex-col gap-2">
-                      <Badge variant="outline" className="bg-background/70">
+                    <div className="absolute bottom-4 left-4 flex flex-col gap-2">                      <Badge variant="outline" className="bg-background/70">
                         {isAudioOn ? "Mikrofon Aktif" : "Mikrofon Mati"}
                       </Badge>
-                      {isRaisingHand && (
-                        <Badge variant="secondary" className="bg-background/70">
-                          Tangan Diangkat
-                        </Badge>
-                      )}
                     </div>
                   </div>                ) : classSessionFinished ? (
                   <div className="flex flex-col items-center justify-center h-[400px] text-white bg-muted-foreground/30">
@@ -484,15 +713,109 @@ const formatMeetingDuration = (seconds) => {
                     <Camera className="h-16 w-16 mb-4 text-muted" />                    <h3 className="text-lg font-semibold">Kamera tidak aktif</h3>
                     <p className="text-center max-w-md mt-2 text-muted-foreground">
                       Aktifkan kamera untuk mengikuti sesi bimbingan privat ini dan memungkinkan deteksi emosi
-                    </p>
-                    <Button
-                      onClick={startWebcam}
-                      variant="outline"
-                      className="mt-4"
-                      disabled={isLoading || classSessionFinished || isClassFinished}
-                    >
-                      Aktifkan Kamera
-                    </Button>
+                    </p>                    <div className="flex flex-col gap-2 items-center">                      <Button
+                        onClick={startWebcam}
+                        variant="outline"
+                        className="mt-4"
+                        disabled={isLoading || classSessionFinished || isClassFinished}
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Memuat Kamera...
+                          </div>
+                        ) : (
+                          <>
+                            <Camera className="h-4 w-4 mr-2" />
+                            Aktifkan Kamera
+                          </>
+                        )}
+                      </Button>{error && (
+                        <div className="flex flex-col items-center mt-3 text-center">
+                          <Alert variant="destructive" className="mb-2 py-2 bg-red-50 border border-red-200">
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                            <AlertDescription className="text-xs">
+                              {error}
+                            </AlertDescription>
+                          </Alert>
+                          
+                          <p className="text-xs text-muted-foreground mb-2">
+                            {error.includes("simulasi") 
+                              ? "Mode simulasi sedang aktif. Anda dapat mencoba kamera asli atau muat ulang halaman."
+                              : "Jika kamera tidak berfungsi, gunakan mode simulasi atau muat ulang halaman."}
+                          </p>
+                          
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            <Button
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                // Toggle simulation mode
+                                const currentMode = localStorage.getItem('useMockCamera') === 'true';
+                                const newMode = !currentMode;
+                                localStorage.setItem('useMockCamera', newMode.toString());
+                                setError(""); // Clear previous errors
+                                setIsLoading(true);
+                                
+                                // Add small delay to show loading state
+                                setTimeout(() => {
+                                  startWebcam(); // Restart with new setting
+                                }, 300);
+                              }}
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                className="mr-1"
+                              >
+                                <rect x="2" y="6" width="20" height="12" rx="2" ry="2"></rect>
+                                <circle cx="12" cy="12" r="3"></circle>
+                              </svg>
+                              {localStorage.getItem('useMockCamera') === 'true' 
+                                ? 'Coba Gunakan Kamera Asli' 
+                                : 'Aktifkan Mode Simulasi'}
+                            </Button>
+                            
+                            <Button
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                window.location.reload();
+                              }}
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                className="mr-1"
+                              >
+                                <path d="M21 2v6h-6"></path>
+                                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                                <path d="M3 22v-6h6"></path>
+                                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                              </svg>
+                              Muat Ulang Halaman
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>              {/* Kontrol media */}
@@ -526,64 +849,11 @@ const formatMeetingDuration = (seconds) => {
                   <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-background text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap">
                     {isAudioOn ? 'Matikan Mikrofon' : 'Aktifkan Mikrofon'}
                   </span>
-                  <div className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 h-2 w-2 rounded-full ${isAudioOn ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                </div>
+                  <div className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 h-2 w-2 rounded-full ${isAudioOn ? 'bg-green-500' : 'bg-red-500'}`}></div>                </div>
                 
-                {/* Tombol berbagi layar dengan tooltip */}
-                <div className="relative group">
-                  <Button
-                    size="icon"
-                    className={`h-10 w-10 rounded-full ${isScreenSharing ? 'bg-primary hover:bg-primary/90' : 'bg-muted-foreground/20'}`}
-                    onClick={toggleScreenSharing}
-                    disabled={classSessionFinished || isClassFinished}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                      <line x1="8" y1="21" x2="16" y2="21" />
-                      <line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                  </Button>
-                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-background text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap">
-                    {isScreenSharing ? 'Hentikan Berbagi Layar' : 'Berbagi Layar'}
-                  </span>
-                </div>
+                {/* Fitur berbagi layar dan angkat tangan telah dihapus */}
                 
-                {/* Tombol angkat tangan dengan tooltip */}
-                <div className="relative group">
-                  <Button
-                    size="icon"
-                    className={`h-10 w-10 rounded-full ${isRaisingHand ? 'bg-amber-500 hover:bg-amber-600' : 'bg-muted-foreground/20'}`}
-                    onClick={toggleRaiseHand}
-                    disabled={classSessionFinished || isClassFinished}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M11 11v5a1 1 0 0 0 1 1h5" />
-                      <path d="M4 8V4m0 0h4M4 4l9 9" />
-                    </svg>
-                  </Button>
-                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-background text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap">
-                    {isRaisingHand ? 'Turunkan Tangan' : 'Angkat Tangan'}
-                  </span>
-                </div>
-                  {/* Tombol rekam sesi bimbingan (hanya untuk fasilitator) */}
+                {/* Tombol rekam sesi bimbingan (hanya untuk fasilitator) */}
                 {user.role === "Fasilitator" && (
                   <div className="relative group">
                     <Button
@@ -936,12 +1206,8 @@ const formatMeetingDuration = (seconds) => {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium">
+                          <div className="flex items-center justify-between">                            <p className="font-medium">
                               {participant.name}
-                              {participant.isRaisingHand && (
-                                <span className="ml-2">✋</span>
-                              )}
                             </p>
                             <EmotionIndicator
                               emotion={participant.emotion}
@@ -995,6 +1261,164 @@ const formatMeetingDuration = (seconds) => {
           </div>
         </div>
       </div>
+      
+      {/* Dialog Refleksi (untuk siswa setelah sesi selesai) */}      <Dialog open={showReflectionPrompt} onOpenChange={setShowReflectionPrompt}>
+        <DialogContent className="sm:max-w-md" aria-describedby="session-finished-description">
+          <DialogHeader>
+            <DialogTitle>Sesi Bimbingan Selesai</DialogTitle>
+            <DialogDescription id="session-finished-description">
+              Refleksi pembelajaran setelah sesi kelas virtual
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center py-4">
+            <div className="mb-4">
+              <EmotionIndicator emotion={dominantEmotion} size="lg" showLabel />
+            </div>
+            
+            <h3 className="text-lg font-semibold mb-2">Refleksi Pembelajaran</h3>
+            <p className="text-center mb-4 text-muted-foreground">
+              Sesi bimbingan privat Anda telah selesai. Emosi dominan Anda selama sesi adalah <span className="font-semibold text-primary">{dominantEmotion}</span>.
+            </p>
+            <p className="text-center mb-6">
+              Luangkan waktu untuk mencatat refleksi pembelajaran Anda untuk meningkatkan pengalaman belajar berikutnya.
+            </p>
+            
+            <div className="w-full flex flex-col sm:flex-row gap-2">
+              <Button 
+                variant="default" 
+                className="flex-1" 
+                onClick={() => {
+                  setShowReflectionPrompt(false)
+                  router.push('/reflection')
+                }}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Buat Refleksi Sekarang
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setShowReflectionPrompt(false)
+                  router.push('/dashboard')
+                }}
+              >
+                Nanti Saja
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+// Reflection Dialog Component
+const ReflectionDialog = ({ isOpen, onClose, classData, dominantEmotion }) => {
+  const [reflectionText, setReflectionText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const emotion = dominantEmotion || "neutral"; // Provide a default value
+  const router = useRouter(); // Get router inside component
+  
+  const handleSubmit = async () => {
+    if (reflectionText.trim().length < 10) {
+      alert("Silakan tulis refleksi minimal 10 karakter.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Create reflection data
+      const reflectionData = {
+        id: Date.now(),
+        sessionId: classData?.id || 'unknown',
+        className: classData?.title || 'Unknown Class',
+        date: new Date().toLocaleDateString('id-ID'),
+        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        content: reflectionText,
+        emotion: emotion,
+        student: localStorage.getItem("userData") ? JSON.parse(localStorage.getItem("userData")).name : "Student",
+        instructor: classData?.instructor || 'Unknown Instructor'
+      };
+      
+      // Save reflection to localStorage
+      try {
+        // Get existing reflections or initialize new array
+        const existingReflectionsStr = localStorage.getItem('reflections') || '[]';
+        const existingReflections = JSON.parse(existingReflectionsStr);
+        
+        // Add new reflection
+        existingReflections.push(reflectionData);
+        
+        // Save back to localStorage
+        localStorage.setItem('reflections', JSON.stringify(existingReflections));
+        
+        console.log('Reflection saved successfully');
+        
+        // Close dialog and redirect
+        onClose();
+        setTimeout(() => {
+          router.push('/reflection');
+        }, 500);
+      } catch (error) {
+        console.error("Error saving reflection:", error);
+      }
+    } catch (error) {
+      console.error("Error submitting reflection:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md" aria-describedby="reflection-dialog-description">        <DialogHeader>
+          <DialogTitle>Refleksi Kelas</DialogTitle>          <DialogDescription id="reflection-dialog-description">
+            Bagikan pengalaman dan refleksi Anda tentang sesi kelas yang baru saja selesai.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Kelas</h4>
+            <p className="text-sm">{classData?.title}</p>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Fasilitator</h4>
+            <p className="text-sm">{classData?.instructor}</p>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Emosi Dominan</h4>
+            <div className="flex items-center gap-2">
+              <EmotionIndicator emotion={emotion} size="sm" />
+              <span className="text-sm capitalize">{emotion}</span>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Refleksi Anda</h4>
+            <textarea
+              className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="Bagaimana perasaan Anda tentang kelas ini? Apa yang Anda pelajari? Adakah yang masih membingungkan?"
+              value={reflectionText}
+              onChange={(e) => setReflectionText(e.target.value)}
+            />
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Batalkan
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting || reflectionText.trim().length < 10}>
+            {isSubmitting ? "Menyimpan..." : "Kirim Refleksi"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};

@@ -1,59 +1,122 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LineChart, BarChart } from "@/components/charts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CalendarIcon, LineChart as LineChartIcon, BarChart as BarChartIcon, Download, Printer, FileDown } from "lucide-react"
+import { CalendarIcon, LineChart as LineChartIcon, BarChart as BarChartIcon, Download, Printer, FileDown, Calendar, Clock } from "lucide-react"
+import { EmotionIndicator } from "@/components/emotion-indicator"
 
 export default function EmotionReportPage() {
   const reportRef = useRef(null);
+  const [emotionReports, setEmotionReports] = useState([]);
+  const [user, setUser] = useState({ name: "Guest", role: "Siswa" });
+  const [activeTab, setActiveTab] = useState("weekly");
+
+  // Load emotion reports and user data on component mount
+  useEffect(() => {
+    // Load user data
+    const userData = localStorage.getItem("userData");
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+    
+    // Load saved emotion reports
+    const savedReports = localStorage.getItem("emotionReports");
+    if (savedReports) {
+      try {
+        const parsedReports = JSON.parse(savedReports);
+        setEmotionReports(parsedReports);
+      } catch (error) {
+        console.error("Error parsing saved emotion reports:", error);
+      }
+    }
+  }, []);
 
   // Function to handle PDF export via print
   const handlePrintPDF = () => {
     window.print();
   };
-
-  // Data untuk grafik emosi mingguan
-  const weeklyEmotionData = [
-    {
-      day: "Senin",
-      senang: 70,
-      sedih: 10,
-      marah: 5,
-      netral: 15
-    },
-    {
-      day: "Selasa",
-      senang: 60,
-      sedih: 15,
-      marah: 10,
-      netral: 15
-    },
-    {
-      day: "Rabu",
-      senang: 45,
-      sedih: 20,
-      marah: 15,
-      netral: 20
-    },
-    {
-      day: "Kamis",
-      senang: 55,
-      sedih: 10,
-      marah: 5,
-      netral: 30
-    },
-    {
-      day: "Jumat",
-      senang: 80,
-      sedih: 5,
-      marah: 5,
-      netral: 10
-    },
-  ]
+  
+  // Process emotion reports into weekly data
+  const processWeeklyEmotionData = () => {
+    // Default data if no reports exist
+    if (!emotionReports || emotionReports.length === 0) {
+      return [
+        { day: "Senin", senang: 70, sedih: 10, marah: 5, netral: 15 },
+        { day: "Selasa", senang: 60, sedih: 15, marah: 10, netral: 15 },
+        { day: "Rabu", senang: 45, sedih: 20, marah: 15, netral: 20 },
+        { day: "Kamis", senang: 55, sedih: 10, marah: 5, netral: 30 },
+        { day: "Jumat", senang: 65, sedih: 5, marah: 10, netral: 20 }
+      ];
+    }
+    
+    // Process real data
+    const daysOfWeek = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    const result = daysOfWeek.map(day => {
+      return { 
+        day, 
+        senang: 0, 
+        sedih: 0, 
+        marah: 0, 
+        netral: 0,
+        takut: 0,
+        terkejut: 0
+      };
+    });
+    
+    // Last 7 days only
+    const lastWeekReports = emotionReports
+      .filter(report => {
+        const reportDate = new Date(report.date);
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        return reportDate >= sevenDaysAgo;
+      })
+      .forEach(report => {
+        try {
+          const reportDate = new Date(report.date);
+          const dayIndex = reportDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+          
+          // Count emotions
+          if (report.emotions && Array.isArray(report.emotions)) {
+            report.emotions.forEach(entry => {
+              switch(entry.emotion) {
+                case 'joy': result[dayIndex].senang++; break;
+                case 'sadness': result[dayIndex].sedih++; break;
+                case 'fear': result[dayIndex].takut++; break;
+                case 'surprise': result[dayIndex].terkejut++; break;
+                case 'anger': result[dayIndex].marah++; break;
+                case 'neutral': 
+                default: result[dayIndex].netral++; break;
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error processing report:", err);
+        }
+      });
+    
+    // Normalize values to percentages
+    return result.map(day => {
+      const total = day.senang + day.sedih + day.marah + day.netral + day.takut + day.terkejut;
+      if (total === 0) return day;
+      
+      return {
+        day: day.day,
+        senang: Math.round((day.senang / total) * 100),
+        sedih: Math.round((day.sedih / total) * 100),
+        marah: Math.round((day.marah / total) * 100),
+        netral: Math.round((day.netral / total) * 100),
+        takut: Math.round((day.takut / total) * 100),
+        terkejut: Math.round((day.terkejut / total) * 100)
+      };
+    });
+  };
+  // Weekly emotion data
+  const weeklyEmotionData = processWeeklyEmotionData();
 
   // Data untuk grafik bulanan
   const monthlyEmotionData = [
@@ -94,6 +157,41 @@ export default function EmotionReportPage() {
     { name: 'Marah', value: 8 },
     { name: 'Netral', value: 18 }
   ]
+
+  // Helper function to count emotions and calculate percentages
+  const countEmotions = (emotions) => {
+    // Initialize counters
+    const counts = {
+      joy: 0,
+      sadness: 0,
+      fear: 0,
+      surprise: 0,
+      anger: 0,
+      neutral: 0
+    };
+    
+    // Count each emotion type
+    emotions.forEach(entry => {
+      if (counts[entry.emotion] !== undefined) {
+        counts[entry.emotion]++;
+      } else {
+        counts.neutral++;
+      }
+    });
+    
+    // Calculate total
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    
+    // Calculate percentages and format for display
+    return [
+      { name: "senang", count: counts.joy, percentage: total > 0 ? Math.round((counts.joy / total) * 100) : 0 },
+      { name: "sedih", count: counts.sadness, percentage: total > 0 ? Math.round((counts.sadness / total) * 100) : 0 },
+      { name: "takut", count: counts.fear, percentage: total > 0 ? Math.round((counts.fear / total) * 100) : 0 },
+      { name: "terkejut", count: counts.surprise, percentage: total > 0 ? Math.round((counts.surprise / total) * 100) : 0 },
+      { name: "marah", count: counts.anger, percentage: total > 0 ? Math.round((counts.anger / total) * 100) : 0 },
+      { name: "netral", count: counts.neutral, percentage: total > 0 ? Math.round((counts.neutral / total) * 100) : 0 }
+    ];
+  };
 
   return (
     <>
@@ -295,6 +393,86 @@ export default function EmotionReportPage() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Session History Section */}
+            <Card className="mt-8 print-item">
+              <CardHeader>
+                <CardTitle>Riwayat Sesi Kelas</CardTitle>
+                <CardDescription>
+                  Daftar sesi kelas yang telah diikuti beserta emosi dominan
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {emotionReports && emotionReports.length > 0 ? (
+                  <div className="space-y-4">
+                    {emotionReports.map((report, index) => (
+                      <div key={index} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium">{report.className}</h3>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {report.date}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {report.startTime} - {report.endTime}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize">
+                              {report.dominantEmotion || "neutral"}
+                            </Badge>
+                            <EmotionIndicator emotion={report.dominantEmotion || "neutral"} size="sm" />
+                          </div>
+                        </div>
+                        <div className="mt-4 bg-muted/30 p-3 rounded-md">
+                          <h4 className="text-sm font-medium mb-2">Statistik Emosi</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {report.emotions && Array.isArray(report.emotions) && 
+                              countEmotions(report.emotions).map((emotion, i) => (
+                                <Badge key={i} variant={emotion.count > 0 ? "default" : "outline"} className="capitalize">
+                                  {emotion.name}: {emotion.percentage}%
+                                </Badge>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Belum ada riwayat sesi kelas yang tersimpan.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Shared with facilitator notice */}
+            <div className="mt-8 bg-muted/30 border rounded-lg p-4 flex items-center gap-3 print-item">
+              <div className="bg-primary/10 p-2 rounded-full text-primary">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className="h-5 w-5" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium">Data emosi dibagikan dengan fasilitator</p>
+                <p className="text-sm text-muted-foreground">
+                  Fasilitator dapat melihat laporan emosi Anda untuk memberi dukungan yang lebih baik dalam proses belajar.
+                </p>
+              </div>
             </div>
 
             {/* Signature section for the report */}

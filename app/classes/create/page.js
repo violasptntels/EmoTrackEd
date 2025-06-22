@@ -467,10 +467,9 @@ export default function CreateClassPage() {
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent>
+        <DialogContent aria-describedby="confirm-class-creation-description">
           <DialogHeader>
-            <DialogTitle>Konfirmasi Pembuatan Kelas</DialogTitle>
-            <DialogDescription>
+            <DialogTitle>Konfirmasi Pembuatan Kelas</DialogTitle>            <DialogDescription id="confirm-class-creation-description">
               Apakah Anda yakin ingin membuat kelas virtual dengan informasi yang telah diisi?
             </DialogDescription>
           </DialogHeader>
