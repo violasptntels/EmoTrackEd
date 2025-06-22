@@ -33,11 +33,13 @@ import {
 import { useParams, useRouter } from "next/navigation"
 
 // Import camera utility functions
-import { createMockVideoStream, getUserVideoStream, stopMediaStream, cleanupVideoElement, getWebcamErrorMessage } from "../camera-utils"
+import { createMockVideoStream, getUserVideoStream, stopMediaStream, cleanupVideoElement, getWebcamErrorMessage, testCameraAccess } from "../camera-utils"
+import { useRouter as useNavigationRouter } from "next/navigation"
 
 export default function ClassDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const navigationRouter = useNavigationRouter()
   const [user, setUser] = useState({ name: "Guest", role: "Siswa" })
   const [isVideoOn, setIsVideoOn] = useState(false)
   const [isAudioOn, setIsAudioOn] = useState(false)
@@ -48,9 +50,58 @@ export default function ClassDetailPage() {
   const [isClassFinished, setIsClassFinished] = useState(false) // State baru untuk menandai kelas selesai
   const videoRef = useRef(null)
   const [classSessionFinished, setClassSessionFinished] = useState(false) // State baru untuk melacak status sesi kelas
+  const [showDiagnostics, setShowDiagnostics] = useState(false) // State for showing/hiding diagnostic dialog
+  
+  // Function to run camera diagnostics and show results in a dialog
+  const runCameraDiagnostic = async () => {
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      console.log("Running camera diagnostic...");
+      const results = await testCameraAccess();
+      
+      // Show diagnostics dialog with the results
+      setShowDiagnostics(true);
+      setIsLoading(false);
+      
+      // Log results
+      console.log("Diagnostic results:", results);
+      
+      // Show appropriate error if diagnostics failed
+      if (!results.success) {
+        setError(`Diagnostik gagal: ${results.message}`);
+      } else {
+        setError(""); // Clear any existing errors
+      }
+      
+      return results;
+    } catch (err) {
+      console.error("Error running camera diagnostic:", err);
+      setError(`Error saat melakukan diagnostik kamera: ${err.message}`);
+      setIsLoading(false);
+      return null;
+    }
+  };
+  
+  // Function to open camera fix page
+  const openCameraFixTool = () => {
+    navigationRouter.push('/classes/camera-fix');
+  };
+  
   // Additional states for meeting experience
   const [isMeetingRecording, setIsMeetingRecording] = useState(user?.role === "Fasilitator")
   const [meetingDuration, setMeetingDuration] = useState(0)
+  // State for videoRef readiness
+  const [isVideoRefReady, setIsVideoRefReady] = useState(false)
+
+  // Make sure videoRef is ready
+  useEffect(() => {
+    if (videoRef && videoRef.current) {
+      setIsVideoRefReady(true);
+      console.log("videoRef is ready");
+    }
+  }, [videoRef?.current]);
 
   // State untuk melacak emosi selama sesi kelas
   const [emotionData, setEmotionData] = useState([])
@@ -120,6 +171,78 @@ export default function ClassDetailPage() {
     const secs = seconds % 60
     return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
+
+  // Diagnostics dialog component
+  const DiagnosticsDialog = () => {
+    const [diagnosticResults, setDiagnosticResults] = useState(null);
+    
+    // Run diagnostics when dialog is shown
+    useEffect(() => {
+      if (showDiagnostics) {
+        const runDiagnostics = async () => {
+          try {
+            const results = await testCameraAccess();
+            setDiagnosticResults(results);
+          } catch (err) {
+            console.error("Error in dialog diagnostics:", err);
+          }
+        };
+        
+        runDiagnostics();
+      }
+    }, [showDiagnostics]);
+    
+    return (
+      <Dialog open={showDiagnostics} onOpenChange={setShowDiagnostics}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Hasil Diagnostik Kamera</DialogTitle>
+            <DialogDescription>
+              Hasil pemeriksaan kamera dan perangkat media
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!diagnosticResults ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2">
+                <div className={`h-3 w-3 rounded-full ${diagnosticResults.success ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <h3 className="font-medium">
+                  Status: {diagnosticResults.success ? "Berhasil" : "Gagal"}
+                </h3>
+              </div>
+              
+              <p>{diagnosticResults.message}</p>
+              
+              {diagnosticResults.devices && diagnosticResults.devices.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2">Perangkat kamera terdeteksi:</h4>
+                  <ul className="list-disc pl-6">
+                    {diagnosticResults.devices.map((device, index) => (
+                      <li key={index}>{device.label || `Kamera ${index + 1}`}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setShowDiagnostics(false)}>
+                  Tutup
+                </Button>
+                
+                <Button onClick={() => window.open('/classes/camera-fix', '_blank')}>
+                  Buka Tool Diagnostik Lengkap
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Fungsi untuk menyimpan data emosi ke localStorage
   const saveEmotionData = (emotion) => {
@@ -271,112 +394,223 @@ export default function ClassDetailPage() {
     if (lowerText.includes("bingung") || lowerText.includes("sulit")) return "fear"
     return "neutral"
   }  // Import functions from camera-utils.js
-  const getMockVideoStream = () => createMockVideoStream(setCurrentEmotion);
-  
-  // Function to start webcam
-  const startWebcam = async () => {
-    setIsLoading(true);
-    setError("");
-    
-    // Clear any existing stream
-    if (stream) {
-      stopWebcam();
+  const getMockVideoStream = () => createMockVideoStream(setCurrentEmotion);  // Function to start webcam
+const startWebcam = async (retry = 0) => {
+  if (!videoRef.current) {
+    console.warn("videoRef not available at start of startWebcam, will try with delay");
+
+    if (retry < 5) { // Coba maksimal 5x
+      setTimeout(() => startWebcam(retry + 1), 500);
+    } else {
+      console.error("videoRef masih null setelah beberapa kali percobaan.");
     }
-    
-    try {
-      // Check if we're using simulation mode (from localStorage or by URL parameter)
-      const useMockCamera = localStorage.getItem('useMockCamera') === 'true';
-      
-      let mediaStream;
-      
-      // If not simulation mode, try to get real camera
-      if (!useMockCamera) {
-        try {
-          // Use our new function to get a user video stream (real webcam)
-          mediaStream = await getUserVideoStream(setCurrentEmotion);
-          
-          if (!mediaStream) {
-            console.warn("Could not get user video stream, falling back to mock");
-            // Fall back to mock stream
-            mediaStream = getMockVideoStream();
-          }
-        } catch (err) {
-          console.error("Error accessing camera:", err);
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    // Tambahan: Periksa perangkat yang tersedia
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    console.log("Device kamera yang tersedia:", videoDevices);
+
+    // Jika tidak ada kamera, berikan error khusus
+    if (videoDevices.length === 0) {
+      console.warn("Tidak ada perangkat kamera yang ditemukan");
+    }
+
+    // Check if we're using simulation mode (from localStorage or by URL parameter)
+    const useMockCamera = localStorage.getItem('useMockCamera') === 'true';
+
+    let mediaStream;
+
+    // If not simulation mode, try to get real camera
+    if (!useMockCamera) {
+      try {
+        console.log("Mengakses kamera nyata...");
+        // Use our new function to get a user video stream (real webcam)
+        mediaStream = await getUserVideoStream(setCurrentEmotion);
+
+        if (!mediaStream) {
+          console.warn("Could not get user video stream, falling back to mock");
           // Fall back to mock stream
           mediaStream = getMockVideoStream();
         }
-      } else {
-        // Use mock camera if explicitly requested
-        console.log("Using mock camera for simulation mode");
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+        const errorMessage = getWebcamErrorMessage(err);
+        setError(errorMessage);
+        // Fall back to mock stream
         mediaStream = getMockVideoStream();
       }
-      
-      // Set the stream to state and video element
-      if (mediaStream) {
-        setStream(mediaStream);
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current.play()
-              .then(() => console.log("Video playing successfully"))
-              .catch(err => console.warn("Error playing video:", err));
-          };
-          
-          // Make sure muted is false to hear audio (if needed)
-          videoRef.current.muted = true; // Keep muted to avoid feedback, change if needed
-        }
-        
-        // Update state to reflect video is active
-        setIsVideoOn(true);
-        
-        // Check if audio tracks exist
-        setIsAudioOn(mediaStream.getAudioTracks().length > 0);
-        
-        console.log("Camera activated successfully");
-      } else {
-        throw new Error("Tidak dapat mengakses kamera dan simulasi gagal.");
-      }
-      
-      // If we got a real media stream
+    } else {
+      // Use mock camera if explicitly requested
+      console.log("Using mock camera for simulation mode");
+      mediaStream = getMockVideoStream();
+    }
+
+    // Set the stream to state and video element
+    if (mediaStream) {
+      console.log("Media stream diperoleh:", mediaStream);
       setStream(mediaStream);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(err => console.error("Error playing video:", err));
-        };
+
+      // Perpanjang loading state untuk memastikan DOM siap
+      setIsLoading(true);
+
+      // Delay sedikit untuk memastikan DOM siap
+      setTimeout(() => {
+        setupVideoElement();
+      }, 200);
+
+      // Function to safely setup video element
+      function setupVideoElement() {
+        // Double check videoRef
+        if (!videoRef || !videoRef.current) {
+          console.warn("videoRef tidak tersedia - mencoba lagi dalam 500ms");
+
+          // Tunggu lebih lama, mungkin DOM masih dirender
+          setTimeout(() => {
+            if (!videoRef || !videoRef.current) {
+              console.error("videoRef masih tidak tersedia setelah delay");
+              setError("Element video tidak dapat diakses. Coba muat ulang halaman.");
+              setIsLoading(false);
+              return;
+            }
+
+            // Retry setup
+            trySetupVideo();
+          }, 500);
+          return;
+        }
+
+        trySetupVideo();
       }
-      
-      setIsVideoOn(true);
-      setIsAudioOn(mediaStream.getAudioTracks().length > 0);
+      // Function that actually sets up the video
+      function trySetupVideo() {
+        try {
+          if (!videoRef || !videoRef.current) {
+            console.warn("videoRef masih tidak tersedia setelah delay");
+
+            // Try one more time with longer delay
+            setTimeout(() => {
+              if (!videoRef || !videoRef.current) {
+                setError("Element video tidak tersedia setelah beberapa kali percobaan. Coba gunakan alat diagnostik.");
+                setIsLoading(false);
+                return;
+              }
+              trySetupVideo();
+            }, 1000);
+            return;
+          }
+
+          console.log("Mencoba memasang stream ke video");
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.muted = true;
+          videoRef.current.autoplay = true;
+          videoRef.current.playsInline = true;
+          videoRef.current.setAttribute('playsinline', '');
+          videoRef.current.setAttribute('webkit-playsinline', '');
+          videoRef.current.style.objectFit = 'cover';
+
+          videoRef.current.onloadedmetadata = () => {
+            console.log("Video metadata loaded - mencoba play");
+            videoRef.current.play()
+              .then(() => {
+                console.log("Video berhasil diputar");
+                setIsVideoOn(true);
+                setIsLoading(false);
+                setError("");
+              })
+              .catch(playErr => {
+                console.warn("Error playing video:", playErr);
+
+                // Retry with a delay
+                setTimeout(() => {
+                  videoRef.current.play()
+                    .then(() => {
+                      console.log("Video berhasil diputar pada percobaan kedua");
+                      setIsVideoOn(true);
+                      setIsLoading(false);
+                    })
+                    .catch(err2 => {
+                      console.error("Video masih gagal diputar:", err2);
+                      setError("Tidak dapat memutar video. Coba gunakan mode simulasi.");
+                      setIsLoading(false);
+                    });
+                }, 300);
+              });
+          };
+
+          // Safety timeout if metadata never loads
+          setTimeout(() => {
+            if (isLoading) {
+              console.warn("Timeout waiting for metadata - mencoba play langsung");
+              videoRef.current.play().catch(err => {
+                console.warn("Error on direct play:", err);
+              });
+              setIsLoading(false);
+              setIsVideoOn(true);
+            }
+          }, 3000);
+
+        } catch (setupErr) {
+          console.error("Error dalam setup video:", setupErr);
+          setError(`Error saat setup video: ${setupErr.message}`);
+          setIsLoading(false);
+        }
+      }
+    } else {
+      // No media stream available
+      console.error("Tidak mendapatkan media stream");
+      setError("Tidak dapat mengakses kamera. Coba mode simulasi.");
       setIsLoading(false);
-      
-    } catch (err) {      console.error("Fatal error in startWebcam:", err);
-      
-      // As a last resort, try mock camera without showing an error
+
+      // Try mock camera as last resort
       const mockStream = getMockVideoStream();
-      
       if (mockStream) {
         setStream(mockStream);
-        
-        if (videoRef.current) {
+        if (videoRef && videoRef.current) {
           videoRef.current.srcObject = mockStream;
+          videoRef.current.play()
+            .then(() => {
+              setIsVideoOn(true);
+              setError("Menggunakan mode simulasi karena kamera tidak dapat diakses");
+            })
+            .catch(err => {
+              setError("Gagal memutar video simulasi: " + err.message);
+            });
         }
-        
-        setIsVideoOn(true);
-        setIsAudioOn(true);
-        setIsLoading(false);
-        setError("Mode simulasi diaktifkan karena kamera tidak dapat diakses.");
-      } else {
-        setError(
-          "Tidak dapat mengakses kamera. Silakan periksa izin dan pastikan tidak ada aplikasi lain yang menggunakan kamera."
-        );
         setIsLoading(false);
       }
     }
+  } catch (err) {
+    console.error("Fatal error in startWebcam:", err);
+
+    // As a last resort, try mock camera without showing an error
+    const mockStream = getMockVideoStream();
+
+    if (mockStream) {
+      setStream(mockStream);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mockStream;
+      }
+
+      setIsVideoOn(true);
+      setIsAudioOn(true);
+      setIsLoading(false);
+      setError("Mode simulasi diaktifkan karena kamera tidak dapat diakses.");
+    } else {
+      setError(
+        "Tidak dapat mengakses kamera. Silakan periksa izin dan pastikan tidak ada aplikasi lain yang menggunakan kamera."
+      );
+      setIsLoading(false);
+    }
   }
-    const stopWebcam = () => {
+};
+
+const stopWebcam = () => {
     try {
       if (stream) {
         // Use the imported utility function to stop the stream
@@ -484,61 +718,66 @@ export default function ClassDetailPage() {
   const toggleMeetingRecording = () => {
     setIsMeetingRecording(!isMeetingRecording)
   }  // Handler untuk menyelesaikan sesi kelas privat
-  const handleFinishSession = () => {
-    // Stop webcam if it's on
-    if (isVideoOn) {
-      stopWebcam();
-    }
+  // Perbaikan untuk function handleFinishSession
+const handleFinishSession = () => {
+  // Stop webcam if it's on
+  if (isVideoOn) {
+    stopWebcam();
+  }
+  
+  // Calculate session duration and dominant emotions
+  const sessionDuration = meetingDuration;
+  const dominantEmotionResult = calculateDominantEmotion();
+  
+  // Create a summary of the session
+  const sessionSummary = {
+    sessionId: params.id,
+    className: classData.title,
+    instructor: classData.instructor,
+    date: new Date().toLocaleDateString('id-ID'),
+    startTime: classData.startTime,
+    endTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    duration: formatMeetingDuration(sessionDuration),
+    emotions: emotionData,
+    dominantEmotion: dominantEmotionResult,
+    participants: participants.length
+  };
+  
+  // Save session data to localStorage for reports
+  try {
+    // Get existing emotion report data or initialize new array
+    const existingReportsStr = localStorage.getItem('emotionReports') || '[]';
+    const existingReports = JSON.parse(existingReportsStr);
     
-    // Calculate session duration and dominant emotions
-    const sessionDuration = meetingDuration;
-    const dominantEmotionResult = calculateDominantEmotion();
+    // Add new session report
+    existingReports.push(sessionSummary);
     
-    // Create a summary of the session
-    const sessionSummary = {
-      sessionId: params.id,
-      className: classData.title,
-      instructor: classData.instructor,
-      date: new Date().toLocaleDateString('id-ID'),
-      startTime: classData.startTime,
-      endTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-      duration: formatMeetingDuration(sessionDuration),
-      emotions: emotionData,
-      dominantEmotion: dominantEmotionResult,
-      participants: participants.length
-    };
+    // Limit to last 50 reports
+    const limitedReports = existingReports.slice(-50);
     
-    // Save session data to localStorage for reports
-    try {
-      // Get existing emotion report data or initialize new array
-      const existingReportsStr = localStorage.getItem('emotionReports') || '[]';
-      const existingReports = JSON.parse(existingReportsStr);
-      
-      // Add new session report
-      existingReports.push(sessionSummary);
-      
-      // Limit to last 50 reports
-      const limitedReports = existingReports.slice(-50);
-      
-      // Save back to localStorage
-      localStorage.setItem('emotionReports', JSON.stringify(limitedReports));
-      
-      console.log('Session emotion data saved successfully');
-    } catch (error) {
-      console.error('Error saving session emotion data:', error);
-    }
+    // Save back to localStorage
+    localStorage.setItem('emotionReports', JSON.stringify(limitedReports));
     
-    // Mark session as finished
-    setClassSessionFinished(true);
-    
-    // Show reflection prompt for students
-    if (user.role === 'Siswa') {
-      setShowReflectionPrompt(true);
-    } else {
-      // For facilitator, show session summary
-      router.push('/facilitator/emotions');
-    }
-  };  // Function to handle reflection submission after class
+    console.log('Session emotion data saved successfully');
+  } catch (error) {
+    console.error('Error saving session emotion data:', error);
+  }
+  
+  // Mark session as finished
+  setClassSessionFinished(true);
+  
+  // Perbedaan perilaku berdasarkan peran pengguna
+  if (user.role === 'Siswa') {
+    // Untuk siswa, tampilkan prompt refleksi
+    setShowReflectionPrompt(true);
+  } else if (user.role === 'Fasilitator') {
+    // Untuk fasilitator, arahkan ke halaman analisis emosi
+    router.push('/facilitator/emotions');
+  } else {
+    // Untuk pengunjung atau peran lain, kembali ke halaman kelas
+    router.push('/reflection');
+  }
+};  // Function to handle reflection submission after class
   const handleReflectionSubmit = async (reflectionText, classData, emotionValue = "neutral") => {
     return new Promise((resolve, reject) => {
       try {
@@ -659,166 +898,28 @@ export default function ClassDetailPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-0 relative bg-black flex justify-center items-center">
-                {isLoading ? (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-white bg-muted-foreground/30">
-                    <div className="loading-spinner mb-4"></div>
-                    <p>Memuat kamera...</p>
-                  </div>
-                ) : isVideoOn ? (                  <div className="relative w-full">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-[400px] object-cover"
-                      onError={(e) => {
-                        console.error("Video error:", e);
-                        setError("Terjadi kesalahan pada pemutaran video. Coba muat ulang halaman.");
-                        setIsVideoOn(false);
-                      }}
-                      onLoadedMetadata={(e) => {
-                        console.log("Video loaded successfully");
-                        // Ensure video plays when metadata is loaded
-                        e.target.play().catch(err => console.error("Error playing video:", err));
-                      }}
-                    />
-                      {/* Overlay status untuk emosi terdeteksi */}
-                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-background/70 p-2 rounded-md">
-                      <EmotionIndicator emotion={currentEmotion} size="sm" />
-                      <span className="text-sm font-medium">Emosi terdeteksi: {currentEmotion}</span>
-                      {localStorage.getItem('useMockCamera') === 'true' && (
-                        <Badge variant="outline" className="ml-1 bg-yellow-100/30 text-yellow-900 border-yellow-300">
-                          Mode Simulasi
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    {/* Overlay untuk status perangkat */}
-                    <div className="absolute bottom-4 left-4 flex flex-col gap-2">                      <Badge variant="outline" className="bg-background/70">
-                        {isAudioOn ? "Mikrofon Aktif" : "Mikrofon Mati"}
-                      </Badge>
-                    </div>
-                  </div>                ) : classSessionFinished ? (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-white bg-muted-foreground/30">
-                    <AlertCircle className="h-16 w-16 mb-4 text-muted" />
-                    <h3 className="text-xl font-semibold">Sesi Privat Telah Berakhir</h3>
-                    <p className="text-center max-w-md mt-2 text-muted-foreground">
-                      Terima kasih telah berpartisipasi dalam sesi bimbingan privat ini.
-                      {user.role === "Siswa" && "Silakan menuju ke halaman refleksi untuk mencatat pemahaman Anda."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-white bg-muted-foreground/30">
-                    <Camera className="h-16 w-16 mb-4 text-muted" />                    <h3 className="text-lg font-semibold">Kamera tidak aktif</h3>
-                    <p className="text-center max-w-md mt-2 text-muted-foreground">
-                      Aktifkan kamera untuk mengikuti sesi bimbingan privat ini dan memungkinkan deteksi emosi
-                    </p>                    <div className="flex flex-col gap-2 items-center">                      <Button
-                        onClick={startWebcam}
-                        variant="outline"
-                        className="mt-4"
-                        disabled={isLoading || classSessionFinished || isClassFinished}
-                      >
-                        {isLoading ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Memuat Kamera...
-                          </div>
-                        ) : (
-                          <>
-                            <Camera className="h-4 w-4 mr-2" />
-                            Aktifkan Kamera
-                          </>
-                        )}
-                      </Button>{error && (
-                        <div className="flex flex-col items-center mt-3 text-center">
-                          <Alert variant="destructive" className="mb-2 py-2 bg-red-50 border border-red-200">
-                            <AlertCircle className="h-4 w-4 mr-2" />
-                            <AlertDescription className="text-xs">
-                              {error}
-                            </AlertDescription>
-                          </Alert>
-                          
-                          <p className="text-xs text-muted-foreground mb-2">
-                            {error.includes("simulasi") 
-                              ? "Mode simulasi sedang aktif. Anda dapat mencoba kamera asli atau muat ulang halaman."
-                              : "Jika kamera tidak berfungsi, gunakan mode simulasi atau muat ulang halaman."}
-                          </p>
-                          
-                          <div className="flex flex-wrap gap-2 justify-center">
-                            <Button
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                // Toggle simulation mode
-                                const currentMode = localStorage.getItem('useMockCamera') === 'true';
-                                const newMode = !currentMode;
-                                localStorage.setItem('useMockCamera', newMode.toString());
-                                setError(""); // Clear previous errors
-                                setIsLoading(true);
-                                
-                                // Add small delay to show loading state
-                                setTimeout(() => {
-                                  startWebcam(); // Restart with new setting
-                                }, 300);
-                              }}
-                            >
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="16" 
-                                height="16" 
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                className="mr-1"
-                              >
-                                <rect x="2" y="6" width="20" height="12" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="12" r="3"></circle>
-                              </svg>
-                              {localStorage.getItem('useMockCamera') === 'true' 
-                                ? 'Coba Gunakan Kamera Asli' 
-                                : 'Aktifkan Mode Simulasi'}
-                            </Button>
-                            
-                            <Button
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                window.location.reload();
-                              }}
-                            >
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="16" 
-                                height="16" 
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                className="mr-1"
-                              >
-                                <path d="M21 2v6h-6"></path>
-                                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
-                                <path d="M3 22v-6h6"></path>
-                                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
-                              </svg>
-                              Muat Ulang Halaman
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>              {/* Kontrol media */}
+              <CardContent className="p-0 relative bg-black flex flex-col items-center justify-center space-y-4">
+  <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-muted">
+    {/* Elemen video selalu dirender, agar ref tidak null */}
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className="w-full h-full object-cover bg-black"
+    />
+  </div>
+
+  <Button
+    size="icon"
+    className={`h-10 w-10 rounded-full ${isVideoOn ? 'bg-primary hover:bg-primary/90' : 'bg-muted-foreground/20'}`}
+    onClick={() => isVideoOn ? stopWebcam() : startWebcam()}
+    disabled={isLoading || classSessionFinished || isClassFinished}
+  >
+    {isVideoOn ? "🛑" : "📷"}
+  </Button>
+</CardContent>
+              {/* Kontrol media */}
               <div className="bg-muted p-3 flex items-center justify-center gap-3">
                 {/* Tombol kamera dengan tooltip dan visual feedback */}
                 <div className="relative group">
@@ -848,11 +949,24 @@ export default function ClassDetailPage() {
                   </Button>
                   <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-background text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap">
                     {isAudioOn ? 'Matikan Mikrofon' : 'Aktifkan Mikrofon'}
+                  </span>                  <div className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 h-2 w-2 rounded-full ${isAudioOn ? 'bg-green-500' : 'bg-red-500'}`}></div>                </div>
+                
+                {/* Tombol diagnostic dengan tooltip */}
+                <div className="relative group">
+                  <Button
+                    size="icon"
+                    className="h-10 w-10 rounded-full bg-muted-foreground/20"
+                    onClick={runCameraDiagnostic}
+                    disabled={isLoading || classSessionFinished || isClassFinished}
+                  >
+                    <AlertCircle className="h-5 w-5" />
+                  </Button>
+                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-background text-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap">
+                    Diagnostik Kamera
                   </span>
-                  <div className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 h-2 w-2 rounded-full ${isAudioOn ? 'bg-green-500' : 'bg-red-500'}`}></div>                </div>
+                </div>
                 
                 {/* Fitur berbagi layar dan angkat tangan telah dihapus */}
-                
                 {/* Tombol rekam sesi bimbingan (hanya untuk fasilitator) */}
                 {user.role === "Fasilitator" && (
                   <div className="relative group">
@@ -1261,8 +1375,8 @@ export default function ClassDetailPage() {
           </div>
         </div>
       </div>
-      
-      {/* Dialog Refleksi (untuk siswa setelah sesi selesai) */}      <Dialog open={showReflectionPrompt} onOpenChange={setShowReflectionPrompt}>
+        {/* Dialog Refleksi (untuk siswa setelah sesi selesai) */}      
+      <Dialog open={showReflectionPrompt} onOpenChange={setShowReflectionPrompt}>
         <DialogContent className="sm:max-w-md" aria-describedby="session-finished-description">
           <DialogHeader>
             <DialogTitle>Sesi Bimbingan Selesai</DialogTitle>
@@ -1310,6 +1424,9 @@ export default function ClassDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Dialog Diagnostik Kamera */}
+      <DiagnosticsDialog />
     </div>
   )
 }

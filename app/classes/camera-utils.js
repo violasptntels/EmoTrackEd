@@ -1,193 +1,121 @@
-// Camera utilities for video streaming and error handling
-
 /**
- * Creates a video stream from user's webcam
- * @param {Function} setCurrentEmotion - Function to set current emotion
- * @returns {Promise<MediaStream | null>} A media stream or null if access fails
+ * Mengambil video stream dari kamera pengguna
+ * @param {Function} setCurrentEmotion - Opsional callback untuk simulasi deteksi emosi
+ * @returns {Promise<MediaStream|null>}
  */
 export const getUserVideoStream = async (setCurrentEmotion) => {
   try {
-    // Check if MediaDevices API is supported
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error("MediaDevices API not supported in this browser");
+      console.error("MediaDevices API tidak tersedia di browser ini");
       return null;
     }
-    
-    // Request access to webcam with video and audio
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        facingMode: "user" // Specifically request front-facing camera
-      },
-      audio: true
-    });
-    
-    // Set up a timer to simulate emotion detection (in real app, this would be AI-based)
-    const emotionDetectionInterval = setInterval(() => {
-      const emotions = ["joy", "neutral", "sadness", "surprise", "fear"];
-      const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-      if (setCurrentEmotion) {
-        setCurrentEmotion(randomEmotion);
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+    if (videoDevices.length === 0) {
+      console.warn("Tidak ada kamera yang terdeteksi");
+      return null;
+    }
+
+    const constraintList = [
+      { video: true, audio: true },
+      { video: { deviceId: { exact: videoDevices[0].deviceId } }, audio: true },
+      { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user", frameRate: { ideal: 30 } }, audio: true },
+      { video: true, audio: false }
+    ];
+
+    for (const constraints of constraintList) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log("Berhasil mendapatkan stream dengan constraint:", constraints);
+
+        if (setCurrentEmotion) {
+          const emotions = ["joy", "neutral", "sadness", "surprise", "fear"];
+          const interval = setInterval(() => {
+            const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
+            setCurrentEmotion(randomEmotion);
+          }, 3000);
+          stream.emotionDetectionInterval = interval;
+        }
+
+        return stream;
+      } catch (err) {
+        console.warn("Gagal dengan constraint:", constraints, err);
+        continue;
       }
-    }, 3000);
-    
-    // Attach the interval ID to the stream for cleanup later
-    stream.emotionDetectionInterval = emotionDetectionInterval;
-    
-    return stream;
+    }
+
+    return null;
   } catch (err) {
-    console.error("Error accessing user camera:", err);
+    console.error("Kesalahan saat akses kamera:", err);
     return null;
   }
 };
 
 /**
- * Creates a mock video stream using canvas
- * @returns {MediaStream | null} A mock media stream or null if creation fails
+ * Membuat video stream palsu (simulasi)
  */
 export const createMockVideoStream = (setCurrentEmotion) => {
   try {
-    // Create a canvas element
     const canvas = document.createElement('canvas');
     canvas.width = 640;
     canvas.height = 480;
-    
-    // Get the canvas context
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      console.error("Failed to get canvas context");
-      return null;
-    }
-    
-    // Create a gradient background
+    if (!ctx) return null;
+
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     gradient.addColorStop(0, '#6366f1');
     gradient.addColorStop(1, '#8b5cf6');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Add a message
-    ctx.font = 'bold 24px Arial';
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    ctx.fillText('Kamera Simulasi', canvas.width / 2, canvas.height / 2 - 40);
-    ctx.font = '18px Arial';
-    ctx.fillText('Mode Simulasi Aktif', canvas.width / 2, canvas.height / 2);
-    ctx.font = '14px Arial';
-    ctx.fillText('(Tidak menggunakan kamera asli)', canvas.width / 2, canvas.height / 2 + 30);
-    
+
     const updateCanvas = () => {
-      try {
-        // Clear the bottom part for the timestamp
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
-        
-        // Add timestamp
-        const now = new Date();
-        const timeString = now.toLocaleTimeString();
-        ctx.font = '16px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.fillText(timeString, canvas.width / 2, canvas.height - 35);
-        ctx.font = '12px Arial';
-        ctx.fillText('Simulasi Deteksi Emosi', canvas.width / 2, canvas.height - 15);
-        
-        // Add simulated detection (changes every few seconds)
-        if (Math.floor(now.getSeconds() / 3) % 5 === 0) {
-          setCurrentEmotion('joy');
-        } else if (Math.floor(now.getSeconds() / 3) % 5 === 1) {
-          setCurrentEmotion('neutral');
-        } else if (Math.floor(now.getSeconds() / 3) % 5 === 2) {
-          setCurrentEmotion('sadness');
-        } else if (Math.floor(now.getSeconds() / 3) % 5 === 3) {
-          setCurrentEmotion('fear');
-        } else {
-          setCurrentEmotion('surprise');
-        }
-      } catch (updateErr) {
-        console.error("Error updating canvas:", updateErr);
-      }
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+      const now = new Date();
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.font = '16px Arial';
+      ctx.fillText(now.toLocaleTimeString(), canvas.width / 2, canvas.height - 35);
+      ctx.fillText('Simulasi Deteksi Emosi', canvas.width / 2, canvas.height - 15);
+
+      const second = now.getSeconds() % 5;
+      const emotions = ["joy", "neutral", "sadness", "fear", "surprise"];
+      if (setCurrentEmotion) setCurrentEmotion(emotions[second]);
     };
-    
-    // Update the canvas every second
+
     updateCanvas();
     const intervalId = setInterval(updateCanvas, 1000);
-    
-    // Create a stream from the canvas
-    let mockStream;
-    try {
-      // Check if the canvas has the captureStream method
-      if (typeof canvas.captureStream !== 'function') {
-        console.error("Canvas captureStream not supported in this browser");
-        clearInterval(intervalId);
-        return null;
-      }
-      
-      // @ts-ignore - this is a standard API but TypeScript might not recognize it
-      mockStream = canvas.captureStream(30); // 30 FPS
-      
-      try {
-        // Add a mock audio track if needed
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          const audioContext = new AudioContext();
-          const oscillator = audioContext.createOscillator();
-          const dst = oscillator.connect(audioContext.createMediaStreamDestination());
-          oscillator.start();
-          const audioTrack = dst.stream.getAudioTracks()[0];
-          mockStream.addTrack(audioTrack);
-        }
-      } catch (audioErr) {
-        console.warn("Could not add mock audio track:", audioErr);
-        // Continue without audio if it fails
-      }
-      
-      // Store the interval ID to clear it later
-      mockStream.intervalId = intervalId;
-    } catch (err) {
-      console.error("Error creating mock stream:", err);
-      clearInterval(intervalId);
-      return null;
-    }
-    
-    return mockStream;
+
+    const stream = canvas.captureStream(30);
+    stream.intervalId = intervalId;
+
+    return stream;
   } catch (err) {
-    console.error("Fatal error in createMockVideoStream:", err);
+    console.error("Gagal membuat mock stream:", err);
     return null;
   }
 };
 
 /**
- * Safely stops a media stream by stopping all tracks
- * @param {MediaStream} stream - The stream to stop
+ * Menghentikan semua track dari stream
  */
 export const stopMediaStream = (stream) => {
-  try {
-    if (stream) {
-      // Clear any interval that might be running for mock video
-      if (stream.intervalId) {
-        clearInterval(stream.intervalId);
+  if (stream) {
+    if (stream.intervalId) clearInterval(stream.intervalId);
+    stream.getTracks().forEach(track => {
+      try {
+        track.stop();
+      } catch (err) {
+        console.warn("Gagal menghentikan track:", err);
       }
-      
-      // Safely stop each track
-      const tracks = stream.getTracks();
-      tracks.forEach(track => {
-        try {
-          track.stop();
-        } catch (trackErr) {
-          console.warn("Error stopping track:", trackErr);
-        }
-      });
-    }
-  } catch (err) {
-    console.error("Error stopping media stream:", err);
+    });
   }
 };
 
 /**
- * Safely clean up the video element
- * @param {HTMLVideoElement} videoElement - The video element to clean
+ * Bersihkan elemen video
  */
 export const cleanupVideoElement = (videoElement) => {
   try {
@@ -195,48 +123,79 @@ export const cleanupVideoElement = (videoElement) => {
       videoElement.onloadedmetadata = null;
       videoElement.onerror = null;
       videoElement.srcObject = null;
-      videoElement.load(); // Force resource release
+      videoElement.load();
     }
   } catch (err) {
-    console.error("Error cleaning up video element:", err);
+    console.error("Gagal membersihkan elemen video:", err);
   }
 };
 
 /**
- * Parses and formats webcam error messages to be user friendly
- * @param {Error} error - The error object from getUserMedia
- * @returns {string} A user-friendly error message
+ * Format pesan error dari kamera
  */
 export const getWebcamErrorMessage = (error) => {
   if (!error) return "Terjadi kesalahan saat mengakses kamera.";
 
-  // Common getUserMedia error names and messages
-  switch(error.name) {
+  switch (error.name) {
     case 'NotFoundError':
     case 'DevicesNotFoundError':
-      return "Kamera tidak ditemukan. Pastikan perangkat kamera tersambung dengan benar.";
-    
+      return "Kamera tidak ditemukan.";
     case 'NotAllowedError':
     case 'PermissionDeniedError':
-      return "Akses ke kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda.";
-    
+      return "Akses kamera ditolak. Cek pengaturan izin di browser.";
     case 'NotReadableError':
-    case 'TrackStartError':
-      return "Kamera sedang digunakan oleh aplikasi lain. Tutup aplikasi yang mungkin menggunakan kamera dan coba lagi.";
-    
+      return "Kamera sedang digunakan oleh aplikasi lain.";
     case 'OverconstrainedError':
-      return "Kamera tidak mendukung pengaturan yang diminta. Coba gunakan mode simulasi.";
-    
-    case 'TypeError':
-      return "Parameter tidak valid. Coba muat ulang halaman.";
-    
-    case 'AbortError':
-      return "Akses kamera dibatalkan. Coba muat ulang halaman.";
-    
+      return "Kamera tidak mendukung konfigurasi yang diminta.";
     case 'SecurityError':
-      return "Akses kamera ditolak karena alasan keamanan. Coba gunakan mode simulasi.";
-    
+      return "Akses kamera diblokir karena alasan keamanan.";
     default:
-      return `Tidak dapat mengakses kamera: ${error.message || error.name || "Kesalahan tidak diketahui"}`;
+      return `Tidak dapat mengakses kamera: ${error.message || error.name}`;
   }
+};
+
+/**
+ * Tes akses kamera dan info perangkat
+ */
+export const testCameraAccess = async () => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+    if (videoDevices.length === 0) {
+      return { success: false, message: "Tidak ada kamera yang terdeteksi", devices: [] };
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: videoDevices[0].deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+
+    const track = stream.getVideoTracks()[0];
+    const trackInfo = {
+      settings: track?.getSettings?.(),
+      capabilities: track?.getCapabilities?.()
+    };
+
+    stream.getTracks().forEach(track => track.stop());
+
+    return {
+      success: true,
+      message: "Kamera berhasil diakses",
+      devices: videoDevices.map(d => ({ id: d.deviceId, label: d.label || "Unnamed Camera" })),
+      trackInfo
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: getWebcamErrorMessage(err),
+      error: { name: err.name, message: err.message }
+    };
+  }
+};
+
+/**
+ * Fungsi placeholder untuk polyfill kamera (menghindari error)
+ */
+export const initializeBrowserCameraPolyfills = () => {
+  console.log("initializeBrowserCameraPolyfills() dipanggil - tidak ada polyfill khusus diperlukan.");
 };
