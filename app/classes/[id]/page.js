@@ -394,7 +394,9 @@ export default function ClassDetailPage() {
     if (lowerText.includes("bingung") || lowerText.includes("sulit")) return "fear"
     return "neutral"
   }  // Import functions from camera-utils.js
-  const getMockVideoStream = () => createMockVideoStream(setCurrentEmotion);  // Function to start webcam
+  const getMockVideoStream = () => createMockVideoStream(setCurrentEmotion);  
+  
+  // Function to start webcam
 const startWebcam = async (retry = 0) => {
   if (!videoRef.current) {
     console.warn("videoRef not available at start of startWebcam, will try with delay");
@@ -407,12 +409,30 @@ const startWebcam = async (retry = 0) => {
     return;
   }
 
-  setIsLoading(true);
-  try {    // Tambahan: Periksa apakah API mediaDevices tersedia
-    if (!navigator.mediaDevices) {
+  setIsLoading(true);  try {    // Tambahan: Periksa apakah API mediaDevices tersedia
+    if (!navigator?.mediaDevices || !navigator?.mediaDevices?.getUserMedia) {
       console.error("MediaDevices API tidak tersedia di browser ini");
-      setError("Browser Anda tidak mendukung akses kamera. Silakan gunakan mode simulasi atau browser modern lainnya.");
-      setIsLoading(false);
+      setError("Browser Anda tidak mendukung akses kamera. Menggunakan mode simulasi.");
+      
+      // Directly use mock camera as fallback
+      const mockStream = getMockVideoStream();
+      if (mockStream && videoRef.current) {
+        setStream(mockStream);
+        videoRef.current.srcObject = mockStream;
+        videoRef.current.play()
+          .then(() => {
+            console.log("Mock video berhasil diputar sebagai fallback");
+            setIsVideoOn(true);
+            setIsLoading(false);
+          })
+          .catch(err => {
+            console.error("Failed to play mock video:", err);
+            setIsLoading(false);
+          });
+      } else {
+        console.error("Gagal mendapatkan mock stream atau videoRef tidak tersedia");
+        setIsLoading(false);
+      }
       return;
     }
     
@@ -595,8 +615,7 @@ const startWebcam = async (retry = 0) => {
         }
         setIsLoading(false);
       }
-    }
-  } catch (err) {
+    }  } catch (err) {
     console.error("Fatal error in startWebcam:", err);
 
     // As a last resort, try mock camera without showing an error
@@ -606,16 +625,33 @@ const startWebcam = async (retry = 0) => {
       setStream(mockStream);
 
       if (videoRef.current) {
-        videoRef.current.srcObject = mockStream;
+        try {
+          videoRef.current.srcObject = mockStream;
+          videoRef.current.play()
+            .then(() => {
+              console.log("Mock video successfully playing after error");
+              setIsVideoOn(true);
+              setError("Mode simulasi diaktifkan karena kamera tidak dapat diakses.");
+            })
+            .catch(playError => {
+              console.error("Error playing mock video after error:", playError);
+              setError("Gagal memutar video simulasi. Silakan muat ulang halaman.");
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
+        } catch (videoErr) {
+          console.error("Error setting up mock video:", videoErr);
+          setIsLoading(false);
+          setError("Kesalahan saat mengatur video simulasi: " + videoErr.message);
+        }
+      } else {
+        setIsLoading(false);
+        setError("Elemen video tidak tersedia. Silakan muat ulang halaman.");
       }
-
-      setIsVideoOn(true);
-      setIsAudioOn(true);
-      setIsLoading(false);
-      setError("Mode simulasi diaktifkan karena kamera tidak dapat diakses.");
     } else {
       setError(
-        "Tidak dapat mengakses kamera. Silakan periksa izin dan pastikan tidak ada aplikasi lain yang menggunakan kamera."
+        "Tidak dapat mengakses kamera atau membuat simulasi. Silakan gunakan mode simulasi di menu pengaturan."
       );
       setIsLoading(false);
     }
@@ -911,14 +947,13 @@ const handleFinishSession = () => {
               </CardHeader>
 
               <CardContent className="p-0 relative bg-black flex flex-col items-center justify-center space-y-4">
-  <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-muted">
-    {/* Elemen video selalu dirender, agar ref tidak null */}
+  <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-muted">    {/* Elemen video selalu dirender, agar ref tidak null */}
     <video
       ref={videoRef}
       autoPlay
       muted
       playsInline
-      className="w-full h-full object-cover bg-black"
+      className={`w-full h-full object-cover bg-black ${user?.role === "Siswa" ? "transform-none" : "scale-x-[-1]"}`}
     />
   </div>
 
