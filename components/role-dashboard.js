@@ -769,57 +769,7 @@ function SiswaDashboard({ user }) {
             </div>
             <span className="font-medium">Refleksi</span>
           </Button>
-        </Link>
-      </div>
-
-      {/* Quick Access Cards for Reports and Reflections */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Emotion Reports Card */}
-        <Card className="overflow-hidden border bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 hover:shadow-md transition-all duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-indigo-500" />
-              Laporan Emosi
-            </CardTitle>
-            <CardDescription>
-              Lihat analisis emosi Anda dari kelas-kelas yang telah diikuti
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground mb-3">
-              Melacak pola emosi selama proses pembelajaran dan identifikasi tren untuk pengembangan diri.
-            </p>
-            <Link href="/emotion-report">
-              <Button className="w-full mt-2 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white">
-                Lihat Laporan Emosi
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Reflections Card */}
-        <Card className="overflow-hidden border bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 hover:shadow-md transition-all duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-500" />
-              Refleksi Pembelajaran
-            </CardTitle>
-            <CardDescription>
-              Lihat refleksi yang Anda buat setelah setiap sesi pembelajaran
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground mb-3">
-              Kumpulan jurnal reflektif pembelajaran yang membantu mengukur progres dan area pengembangan diri.
-            </p>
-            <Link href="/reflection">
-              <Button className="w-full mt-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white">
-                Lihat Refleksi Saya
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+        </Link>      </div>
     </div>
   )
 }
