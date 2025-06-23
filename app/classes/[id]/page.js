@@ -408,11 +408,10 @@ const startWebcam = async (retry = 0) => {
   }
 
   setIsLoading(true);
-  try {
-    // Tambahan: Periksa apakah API mediaDevices tersedia
+  try {    // Tambahan: Periksa apakah API mediaDevices tersedia
     if (!navigator.mediaDevices) {
       console.error("MediaDevices API tidak tersedia di browser ini");
-      setErrorMessage("Browser Anda tidak mendukung akses kamera. Silakan gunakan mode simulasi atau browser modern lainnya.");
+      setError("Browser Anda tidak mendukung akses kamera. Silakan gunakan mode simulasi atau browser modern lainnya.");
       setIsLoading(false);
       return;
     }
